@@ -40,6 +40,7 @@ swiperefreshlayout = "1.1.0"
 viewpager = "1.1.0"
 woodstoxCore = "7.1.1"
 zipalignJava = "1.2.2"
+junit = "4.13.2"
 
 [libraries]
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
@@ -108,10 +109,11 @@ stax-api = { module = "javax.xml.stream:stax-api", version.ref = "staxApi" }
 woodstox-core = { module = "com.fasterxml.woodstox:woodstox-core", version.ref = "woodstoxCore" }
 
 zipalign-java = { module = "com.github.Iyxan23:zipalign-java", version.ref = "zipalignJava" }
+junit = { module = "junit:junit", version.ref = "junit" }
 
 [bundles]
 ui = ["androidx-activity", "androidx-appcompat", "androidx-splashscreen", "androidx-recyclerview",
-    "androidx-cardview", "androidx-viewpager", "androidx-swiperefreshlayout", "material", "lottie",
+
     "flexbox", "androidx-exifinterface", "androidx-preference"]
 image = ["glide", "circleimageview"]
 coil = ["coil", "coil-kt-coil-svg"]
