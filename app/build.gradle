@@ -123,6 +123,9 @@ dependencies {
     implementation libs.bundles.firebase
 
     coreLibraryDesugaring libs.desugar.jdk.libs.nio
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
 }
 
 tasks.register('createMockGoogleServices') {
