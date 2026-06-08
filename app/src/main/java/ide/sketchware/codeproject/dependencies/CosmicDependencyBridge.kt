@@ -33,10 +33,12 @@ object CosmicDependencyBridge {
         synchronized(EventReciever::class.java) {
             try {
                 ensureRepositories()
-                // The library calls into a process-wide event receiver. Save the
-                // current one, install a no-op for our run, and restore it afterward
-                // so we don't leave another caller's receiver pointing at our stub.
-                val previousReceiver = eventReciever
+                // The library calls into a process-wide event receiver.  Install a
+                // no-op so that the library's internal progress callbacks don't NPE.
+                // We intentionally do NOT save/restore the previous receiver here:
+                // another code path (DependencyResolver.kt) may set its own callback
+                // concurrently using a different lock, and restoring a stale value
+                // would silently swallow its UI updates.
                 eventReciever = object : PranavResolver.DependencyResolverCallback() {}
 
                 if (!outputDir.exists()) outputDir.mkdirs()
@@ -78,8 +80,8 @@ object CosmicDependencyBridge {
                             }
                         }
                     }
-                } finally {
-                    eventReciever = previousReceiver
+                } catch (e: Exception) {
+                    errors.add(e.message ?: "Dependency resolution failed")
                 }
 
                 dispatchResult(listener, resolvedJars, errors, warnings)

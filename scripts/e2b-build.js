@@ -229,16 +229,33 @@ async function main() {
 
   try {
     await sandbox.files.write(remoteArchive, createReadStream(options.archive));
-    const buildEnv = {};
-    if (process.env.GOOGLE_SERVICES_JSON) {
-      buildEnv.GOOGLE_SERVICES_JSON = process.env.GOOGLE_SERVICES_JSON;
+
+    // Write release secrets directly to disk inside the sandbox so Gradle
+    // can read them regardless of how the shell inherits environment variables.
+    const projectDir = `/home/user/workspace/${repoBasename}`;
+    const googleServicesJson = process.env.GOOGLE_SERVICES_JSON;
+    const sketchubApiKey = process.env.SKETCHUB_API_KEY;
+
+    const preBuildSteps = [];
+    if (googleServicesJson) {
+      const escapedJson = googleServicesJson.replace(/'/g, "'\\''");
+      preBuildSteps.push(
+        `mkdir -p ${shellQuote(projectDir)}`,
+        `printf '%s' '${escapedJson}' > ${shellQuote(projectDir + "/app/google-services.json")}`,
+      );
     }
-    if (process.env.SKETCHUB_API_KEY) {
-      buildEnv.SKETCHUB_API_KEY = process.env.SKETCHUB_API_KEY;
+
+    // Export SKETCHUB_API_KEY in the shell environment so System.getenv() in
+    // build.gradle picks it up.  Writing the file above handles the JSON blob
+    // that is too large/unwieldy for an env var.
+    const envExports = [];
+    if (sketchubApiKey) {
+      envExports.push(`export SKETCHUB_API_KEY=${shellQuote(sketchubApiKey)}`);
     }
-    const result = await sandbox.commands.run(`bash -lc ${shellQuote(buildSteps.join(" && "))}`, {
+
+    const allSteps = [...preBuildSteps, ...envExports, ...buildSteps];
+    const result = await sandbox.commands.run(`bash -lc ${shellQuote(allSteps.join(" && "))}`, {
       timeoutMs: options.timeoutMs,
-      env: buildEnv,
     });
 
     console.log("BUILD_STDOUT_TAIL_START");

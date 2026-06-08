@@ -31,7 +31,7 @@ import ide.sketchware.managers.inject.InjectRootLayoutManager;
 import ide.sketchware.tools.ViewBeanParser;
 import ide.sketchware.utility.EditorUtils;
 import ide.sketchware.utility.SketchwareUtil;
-import ide.sketchware.utility.relativelayout.CircularDependencyDetector;
+
 
 public class ViewCodeEditorActivity extends BaseAppCompatActivity {
     private ViewCodeEditorBinding binding;
@@ -213,25 +213,14 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
     private void save() {
         try {
             if (isContentModified()) {
-                // Parse content to validate circular dependencies
-                var parser = new ViewBeanParser(editor.getText().toString());
-                parser.setSkipRoot(true);
-
-                var parsedLayout = parser.parse();
-                for (ViewBean viewBean : parsedLayout) {
-                    CircularDependencyDetector detector = new CircularDependencyDetector(parsedLayout, viewBean);
-                    for (String attr : viewBean.parentAttributes.keySet()) {
-                        String targetId = viewBean.parentAttributes.get(attr);
-                        if (!detector.isLegalAttribute(targetId, attr)) {
-                            SketchwareUtil.toastError("Circular dependency found in \"" + viewBean.name + "\"\n" +
-                                    "Please resolve the issue before saving");
-                            return;
-                        }
-                    }
+                String newContent = editor.getText().toString();
+                String validationError = ide.sketchware.codeproject.ui.CodeProjectEditorSupport.validateLayoutXmlWellFormed(newContent);
+                if (validationError != null) {
+                    SketchwareUtil.toastError(validationError);
+                    return;
                 }
 
-                // Update content only after validation
-                content = editor.getText().toString();
+                content = newContent;
                 if (!isEdited) {
                     isEdited = true;
                 }
@@ -265,11 +254,12 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             }
             cc.a(filename);
             cc.a(filename, bean);
-            // Replace the view beans with the parsed layout
             jC.a(sc_id).c.put(filename, parsedLayout);
-            setResult(RESULT_OK);
         } catch (Exception e) {
-            SketchwareUtil.toastError(e.toString());
+            // Parse failure (e.g. custom views not on classpath) should not
+            // prevent the activity from finishing — the file was already saved
+            // to disk by save().
         }
+        setResult(RESULT_OK);
     }
 }
