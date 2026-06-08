@@ -37,7 +37,11 @@ public class CodeProjectTemplate {
     private static String generateManifest(CodeProject project) {
         return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                 + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
-                + "    package=\"" + project.getPackageName() + "\">\n"
+                + "    package=\"" + project.getPackageName() + "\"\n"
+                + "    android:versionCode=\"1\"\n"
+                + "    android:versionName=\"1.0.0\">\n"
+                + "\n"
+                + "    <uses-sdk android:minSdkVersion=\"21\" />\n"
                 + "\n"
                 + "    <uses-permission android:name=\"android.permission.INTERNET\" />\n"
                 + "\n"

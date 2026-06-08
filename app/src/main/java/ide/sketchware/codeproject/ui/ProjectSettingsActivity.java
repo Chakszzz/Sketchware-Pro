@@ -164,6 +164,15 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
         }
     }
 
+    private String escapeXmlAttribute(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&apos;");
+    }
+
     private void updateManifestVersions(int versionCode, String versionName, int minSdk) {
         CodeProject project = CodeProject.fromMetadata(metadata);
         String manifestPath = project.getManifestPath();
@@ -172,16 +181,50 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
 
         String content = FileUtil.readFile(manifestPath);
 
+        // Ensure android:versionCode and android:versionName exist in <manifest ...>
+        java.util.regex.Matcher manifestMatcher = java.util.regex.Pattern.compile("<manifest\\b([^>]*)>").matcher(content);
+        if (manifestMatcher.find()) {
+            String attrs = manifestMatcher.group(1);
+            boolean hasVersionCode = attrs.contains("android:versionCode");
+            boolean hasVersionName = attrs.contains("android:versionName");
+            
+            if (!hasVersionCode || !hasVersionName) {
+                StringBuilder newAttrs = new StringBuilder(attrs);
+                if (!hasVersionCode) {
+                    newAttrs.append(" android:versionCode=\"1\"");
+                }
+                if (!hasVersionName) {
+                    newAttrs.append(" android:versionName=\"1.0\"");
+                }
+                // Replace the manifest tag
+                content = content.substring(0, manifestMatcher.start()) 
+                        + "<manifest" + newAttrs.toString() + ">" 
+                        + content.substring(manifestMatcher.end());
+            }
+        }
+
+        // Ensure <uses-sdk ... /> element exists
+        if (!content.contains("<uses-sdk")) {
+            // Insert <uses-sdk android:minSdkVersion="1" /> right after <manifest ...> tag
+            manifestMatcher = java.util.regex.Pattern.compile("<manifest\\b([^>]*)>").matcher(content);
+            if (manifestMatcher.find()) {
+                content = content.substring(0, manifestMatcher.end())
+                        + "\n    <uses-sdk android:minSdkVersion=\"1\" />"
+                        + content.substring(manifestMatcher.end());
+            }
+        }
+
         // Replace android:versionCode="..."
         content = content.replaceFirst(
             "android:versionCode=\"[^\"]*\"",
             "android:versionCode=\"" + versionCode + "\""
         );
         // Replace android:versionName="..."
+        String escapedVersionName = escapeXmlAttribute(versionName);
         content = content.replaceFirst(
             "android:versionName=\"[^\"]*\"",
             java.util.regex.Matcher.quoteReplacement(
-                "android:versionName=\"" + versionName + "\"")
+                "android:versionName=\"" + escapedVersionName + "\"")
         );
         // Replace android:minSdkVersion="..."
         content = content.replaceFirst(
