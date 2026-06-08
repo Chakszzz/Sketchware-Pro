@@ -250,6 +250,7 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
 
     private void exitWithEditedContent() {
         String filename = getIntent().getStringExtra("title");
+        Intent data = new Intent();
         try {
             var parser = new ViewBeanParser(content);
             parser.setSkipRoot(true);
@@ -265,11 +266,15 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             cc.a(filename);
             cc.a(filename, bean);
             jC.a(sc_id).c.put(filename, parsedLayout);
+            data.putExtra("EXTRA_MODEL_UPDATE_FAILED", false);
         } catch (Exception e) {
             // Parse failure (e.g. custom views not on classpath) should not
             // prevent the activity from finishing — the file was already saved
             // to disk by save().
+            SketchwareUtil.toastError("Failed to update in-memory model: " + e.getMessage());
+            data.putExtra("EXTRA_MODEL_UPDATE_FAILED", true);
+            data.putExtra("EXTRA_ERROR_MESSAGE", e.getMessage());
         }
-        setResult(RESULT_OK);
+        setResult(RESULT_OK, data);
     }
 }

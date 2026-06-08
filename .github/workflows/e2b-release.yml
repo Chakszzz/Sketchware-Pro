@@ -42,7 +42,7 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
           SKETCHUB_API_KEY: ${{ secrets.SKETCHUB_API_KEY }}
         run: |
-          node scripts/e2b-build.js --release --kill-after
+          node scripts/e2b-build.js --release --kill-after --out app-release.apk
 
       - name: Create or Update GitHub Release
         env:

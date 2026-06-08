@@ -272,21 +272,47 @@ async function main() {
     const expectedApk = isRelease ? `${apkBaseDir}/release/app-release.apk` : `${apkBaseDir}/debug/app-debug.apk`;
 
     let remoteApkPath;
-    const checkExpected = await sandbox.commands.run(`test -f ${shellQuote(expectedApk)} && echo "EXISTS" || echo "MISSING"`);
-    if (checkExpected.stdout.trim() === "EXISTS") {
+    const findResult = await sandbox.commands.run(`find ${shellQuote(apkBaseDir)} -name "*.apk" | sort`);
+    const allApks = findResult.stdout.trim().split("\n")
+      .map(p => p.trim())
+      .filter(p => p.endsWith(".apk"));
+
+    const targetDirName = isRelease ? "/release/" : "/debug/";
+    const targetFileNamePart = isRelease ? "release" : "debug";
+    const candidates = allApks.filter(p => {
+      const lower = p.toLowerCase();
+      return p.includes(targetDirName) || path.basename(lower).includes(targetFileNamePart);
+    });
+
+    if (candidates.length === 0) {
+      throw new Error(`No ${isRelease ? "release" : "debug"} APK files found in sandbox build output directory: ${apkBaseDir}`);
+    }
+
+    if (candidates.includes(expectedApk)) {
       remoteApkPath = expectedApk;
     } else {
-      const findResult = await sandbox.commands.run(`find ${shellQuote(apkBaseDir)} -name "*.apk" | sort`);
-      const apkPaths = findResult.stdout.trim().split("\n").filter(p => p.trim().endsWith(".apk"));
-      if (apkPaths.length === 0) {
-        throw new Error(`No APK files found in sandbox build output directory: ${apkBaseDir}`);
+      const getPriority = (p) => {
+        const name = path.basename(p);
+        if (isRelease) {
+          if (name === "app-release.apk") return 1;
+          if (name === "app-release-unsigned.apk") return 2;
+          if (name.includes("release")) return 3;
+        } else {
+          if (name === "app-debug.apk") return 1;
+          if (name.includes("debug")) return 2;
+        }
+        return 4;
+      };
+
+      candidates.sort((a, b) => getPriority(a) - getPriority(b));
+
+      if (candidates.length > 1 && getPriority(candidates[0]) === getPriority(candidates[1])) {
+        console.error("Multiple APK candidates found with the same priority. Please ensure only the expected build variant is produced:");
+        candidates.forEach(p => console.error(`  ${p}`));
+        throw new Error(`Ambiguous APK selection: multiple candidates match the ${isRelease ? "release" : "debug"} filter`);
       }
-      if (apkPaths.length > 1) {
-        console.error("Multiple APK candidates found. Please ensure only the expected build variant is produced:");
-        apkPaths.forEach(p => console.error(`  ${p.trim()}`));
-        throw new Error(`Ambiguous APK selection: ${apkPaths.length} APKs found but expected exactly one at ${expectedApk}`);
-      }
-      remoteApkPath = apkPaths[0].trim();
+
+      remoteApkPath = candidates[0];
     }
 
     console.log(`Downloading APK from sandbox: ${remoteApkPath}`);
