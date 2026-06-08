@@ -7,6 +7,8 @@ import com.android.tools.r8.D8Command
 import com.android.tools.r8.OutputMode
 import com.google.gson.Gson
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import mod.hey.studios.build.BuildSettings
 import mod.hey.studios.util.Helper
 import mod.jbk.build.BuiltInLibraries
@@ -34,6 +36,7 @@ class DependencyResolver(
     private val buildSettings: BuildSettings
 ) {
     companion object {
+        val mutex = Mutex()
         private val DEFAULT_REPOS = """
           |[
           |    {"url": "https://repo.hortonworks.com/content/repositories/releases", "name": "HortanWorks"},
@@ -105,15 +108,15 @@ class DependencyResolver(
     }
 
     fun resolveDependency(callback: DependencyResolverCallback) = runBlocking {
-        synchronized(EventReciever::class.java) {
+        mutex.withLock {
             val previousReceiver = eventReciever
             eventReciever = callback
             try {
-                val dependency = getArtifact(groupId, artifactId, version) ?: return@synchronized
+                val dependency = getArtifact(groupId, artifactId, version) ?: return@withLock
 
                 if (dependency.extension != "jar" && dependency.extension != "aar") {
                     callback.invalidPackaging(dependency)
-                    return@synchronized
+                    return@withLock
                 }
 
                 val libraryJars = listOf(
@@ -183,7 +186,7 @@ class DependencyResolver(
                 if (skipDependencies) {
                     callback.onSkippingResolution(dependency)
                     callback.onTaskCompleted(listOf("${dependency.artifactId}-v${dependency.version}"))
-                    return@synchronized
+                    return@withLock
                 }
                 dependency.resolveDependencyTree()
 

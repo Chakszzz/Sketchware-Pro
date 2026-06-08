@@ -2,6 +2,7 @@ package ide.sketchware.codeproject.dependencies
 
 import android.content.Context
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withLock
 import mod.pranav.dependency.resolver.DependencyResolver as PranavResolver
 import org.cosmic.ide.dependency.resolver.api.Artifact
 import org.cosmic.ide.dependency.resolver.api.Repository
@@ -30,62 +31,58 @@ object CosmicDependencyBridge {
         outputDir: File,
         listener: DependencyResolver.ResolveListener
     ) {
-        synchronized(EventReciever::class.java) {
-            val previousReceiver = eventReciever
-            val noOpReceiver = object : PranavResolver.DependencyResolverCallback() {}
-            eventReciever = noOpReceiver
-            try {
-                ensureRepositories()
-
-                if (!outputDir.exists()) outputDir.mkdirs()
-
-                val resolvedJars = ArrayList<File>()
-                val errors = ArrayList<String>()
-                val warnings = ArrayList<String>()
-                val seen = HashSet<String>()
-
+        runBlocking {
+            PranavResolver.mutex.withLock {
+                val previousReceiver = eventReciever
+                val noOpReceiver = object : PranavResolver.DependencyResolverCallback() {}
+                eventReciever = noOpReceiver
                 try {
-                    runBlocking {
-                        for (decl in declarations) {
-                            listener.onProgress("Resolving ${decl.groupId}:${decl.artifactId}...")
-                            try {
-                                val artifact = getArtifact(decl.groupId, decl.artifactId, decl.version)
-                                if (artifact == null) {
-                                    errors.add("$decl: not found in any repository")
-                                    continue
-                                }
+                    ensureRepositories()
 
-                                // getAllDependencies() resolves the tree internally, so the
-                                // declared artifact + all transitives come back here.
-                                val all = ArrayList<Artifact>()
-                                all.add(artifact)
-                                all.addAll(artifact.getAllDependencies())
+                    if (!outputDir.exists()) outputDir.mkdirs()
 
-                                for (art in all) {
-                                    val key = "${art.groupId}:${art.artifactId}"
-                                    if (!seen.add(key)) continue
-                                    val ext = art.extension
-                                    if (ext != "jar" && ext != "aar") continue
-                                    if (art.version.isNullOrEmpty()) continue
-                                    listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
-                                    val jar = downloadJar(art, outputDir, warnings)
-                                    if (jar != null) resolvedJars.add(jar)
-                                }
-                            } catch (e: Exception) {
-                                errors.add("$decl: ${e.message ?: "resolution failed"}")
+                    val resolvedJars = ArrayList<File>()
+                    val errors = ArrayList<String>()
+                    val warnings = ArrayList<String>()
+                    val seen = HashSet<String>()
+
+                    for (decl in declarations) {
+                        listener.onProgress("Resolving ${decl.groupId}:${decl.artifactId}...")
+                        try {
+                            val artifact = getArtifact(decl.groupId, decl.artifactId, decl.version)
+                            if (artifact == null) {
+                                errors.add("$decl: not found in any repository")
+                                continue
                             }
+
+                            // getAllDependencies() resolves the tree internally, so the
+                            // declared artifact + all transitives come back here.
+                            val all = ArrayList<Artifact>()
+                            all.add(artifact)
+                            all.addAll(artifact.getAllDependencies())
+
+                            for (art in all) {
+                                val key = "${art.groupId}:${art.artifactId}"
+                                if (!seen.add(key)) continue
+                                val ext = art.extension
+                                if (ext != "jar" && ext != "aar") continue
+                                if (art.version.isNullOrEmpty()) continue
+                                listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
+                                val jar = downloadJar(art, outputDir, warnings)
+                                if (jar != null) resolvedJars.add(jar)
+                            }
+                        } catch (e: Exception) {
+                            errors.add("$decl: ${e.message ?: "resolution failed"}")
                         }
                     }
-                } catch (e: Exception) {
-                    errors.add(e.message ?: "Dependency resolution failed")
-                }
 
-                dispatchResult(listener, resolvedJars, errors, warnings)
-            } catch (e: Exception) {
-                listener.onError(e.message ?: "Dependency resolution failed")
-            } finally {
-                if (eventReciever === noOpReceiver) {
-                    eventReciever = previousReceiver
+                    dispatchResult(listener, resolvedJars, errors, warnings)
+                } catch (e: Exception) {
+                    listener.onError(e.message ?: "Dependency resolution failed")
+                } finally {
+                    if (eventReciever === noOpReceiver) {
+                        eventReciever = previousReceiver
+                    }
                 }
             }
         }
