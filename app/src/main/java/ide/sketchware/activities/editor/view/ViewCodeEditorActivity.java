@@ -214,9 +214,8 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
         try {
             if (isContentModified()) {
                 String newContent = editor.getText().toString();
-                String validationError = ide.sketchware.codeproject.ui.CodeProjectEditorSupport.validateLayoutXmlWellFormed(newContent);
-                if (validationError != null) {
-                    SketchwareUtil.toastError(validationError);
+                if (!isWellFormedXml(newContent)) {
+                    SketchwareUtil.toastError("XML is not well-formed");
                     return;
                 }
 
@@ -232,6 +231,17 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             SketchwareUtil.toastError(e.toString());
         }
 
+    }
+
+    private static boolean isWellFormedXml(String xml) {
+        try {
+            var factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            var builder = factory.newDocumentBuilder();
+            builder.parse(new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean isContentModified() {
