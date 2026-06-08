@@ -44,7 +44,8 @@ object CosmicDependencyBridge {
                     val resolvedJars = ArrayList<File>()
                     val errors = ArrayList<String>()
                     val warnings = ArrayList<String>()
-                    val seen = HashSet<String>()
+                    val chosenArtifacts = java.util.LinkedHashMap<String, Artifact>()
+                    val conflictWarnings = ArrayList<String>()
 
                     for (decl in declarations) {
                         listener.onProgress("Resolving ${decl.groupId}:${decl.artifactId}...")
@@ -62,18 +63,36 @@ object CosmicDependencyBridge {
                             all.addAll(artifact.getAllDependencies())
 
                             for (art in all) {
-                                val key = "${art.groupId}:${art.artifactId}"
-                                if (!seen.add(key)) continue
                                 val ext = art.extension
                                 if (ext != "jar" && ext != "aar") continue
                                 if (art.version.isNullOrEmpty()) continue
-                                listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
-                                val jar = downloadJar(art, outputDir, warnings)
-                                if (jar != null) resolvedJars.add(jar)
+
+                                val key = "${art.groupId}:${art.artifactId}"
+                                val existing = chosenArtifacts[key]
+                                if (existing == null) {
+                                    chosenArtifacts[key] = art
+                                } else if (art.version != existing.version) {
+                                    if (compareVersions(art.version, existing.version) > 0) {
+                                        chosenArtifacts[key] = art
+                                        conflictWarnings.add("Version conflict for $key: choosing ${art.version} over ${existing.version}")
+                                    } else {
+                                        conflictWarnings.add("Version conflict for $key: choosing ${existing.version} over ${art.version}")
+                                    }
+                                }
                             }
                         } catch (e: Exception) {
                             errors.add("$decl: ${e.message ?: "resolution failed"}")
                         }
+                    }
+
+                    // Add conflict warnings to the main warnings list
+                    warnings.addAll(conflictWarnings)
+
+                    // Now download the chosen artifacts
+                    for (art in chosenArtifacts.values) {
+                        listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
+                        val jar = downloadJar(art, outputDir, warnings)
+                        if (jar != null) resolvedJars.add(jar)
                     }
 
                     dispatchResult(listener, resolvedJars, errors, warnings)
@@ -226,5 +245,29 @@ object CosmicDependencyBridge {
         }
 
         return if (found) outJar else null
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split("[.-]".toRegex()).filter { it.isNotEmpty() }
+        val parts2 = v2.split("[.-]".toRegex()).filter { it.isNotEmpty() }
+        val length = maxOf(parts1.size, parts2.size)
+        for (i in 0 until length) {
+            val p1 = parts1.getOrNull(i)
+            val p2 = parts2.getOrNull(i)
+            if (p1 == p2) continue
+            if (p1 == null) return -1
+            if (p2 == null) return 1
+
+            val n1 = p1.toIntOrNull()
+            val n2 = p2.toIntOrNull()
+            if (n1 != null && n2 != null) {
+                val cmp = n1.compareTo(n2)
+                if (cmp != 0) return cmp
+            } else {
+                val cmp = p1.compareTo(p2)
+                if (cmp != 0) return cmp
+            }
+        }
+        return 0
     }
 }
