@@ -39,6 +39,8 @@ jobs:
       - name: Compile Release APK in E2B Sandbox
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SKETCHUB_API_KEY: ${{ secrets.SKETCHUB_API_KEY }}
         run: |
           node scripts/e2b-build.js --release --kill-after
 

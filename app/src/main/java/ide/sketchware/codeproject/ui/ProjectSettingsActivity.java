@@ -54,6 +54,7 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
     private void populateFields() {
         binding.inputAppName.setText(yB.c(metadata, "my_app_name"));
         binding.inputPackageName.setText(yB.c(metadata, "my_sc_pkg_name"));
+        binding.inputPackageName.setEnabled(false);
         binding.inputVersionCode.setText(yB.c(metadata, "sc_ver_code"));
         binding.inputVersionName.setText(yB.c(metadata, "sc_ver_name"));
 
@@ -154,7 +155,7 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
                 .replace(">", "&gt;").replace("'", "\\'").replace("\"", "\\\"");
             content = content.replaceFirst(
                 "<string name=\"app_name\">[^<]*</string>",
-                "<string name=\"app_name\">" + escaped + "</string>"
+                java.util.regex.Matcher.quoteReplacement("<string name=\"app_name\">" + escaped + "</string>")
             );
             FileUtil.writeFile(stringsPath, content);
         }

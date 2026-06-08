@@ -81,6 +81,7 @@ public class CodeProjectBuilder {
         classesDir.mkdirs();
         dexDir.mkdirs();
         genDir.mkdirs();
+        BuiltInLibraries.extractCompileAssets();
     }
 
     private void extractAapt2() throws Exception {
@@ -197,6 +198,25 @@ public class CodeProjectBuilder {
         args.add("--java");
         args.add(genDir.getAbsolutePath());
         args.add("--auto-add-overlay");
+
+        File assetsDir = new File(project.getSourcePath() + File.separator + "assets");
+        if (assetsDir.exists() && assetsDir.isDirectory()) {
+            args.add("-A");
+            args.add(assetsDir.getAbsolutePath());
+        }
+
+        if (project.getVersionCode() != null && !project.getVersionCode().isEmpty()) {
+            args.add("--version-code");
+            args.add(project.getVersionCode());
+        }
+        if (project.getVersionName() != null && !project.getVersionName().isEmpty()) {
+            args.add("--version-name");
+            args.add(project.getVersionName());
+        }
+        if (project.getMinSdkVersion() != null && !project.getMinSdkVersion().isEmpty()) {
+            args.add("--min-sdk-version");
+            args.add(project.getMinSdkVersion());
+        }
 
         // Add all compiled resources
         File[] compiledFiles = compiledResDir.listFiles();
@@ -488,6 +508,9 @@ public class CodeProjectBuilder {
         File signedApk = new File(binDir, "signed.apk");
         mod.jbk.util.TestkeySignBridge.signWithTestkey(
                 apk.getAbsolutePath(), signedApk.getAbsolutePath());
+        if (!signedApk.exists() || signedApk.length() == 0) {
+            throw new Exception("APK signing failed: signed APK is missing or empty.");
+        }
         return signedApk;
     }
 

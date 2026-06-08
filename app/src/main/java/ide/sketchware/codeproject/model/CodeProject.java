@@ -17,17 +17,19 @@ public class CodeProject {
     private String appName;
     private String versionCode;
     private String versionName;
+    private String minSdkVersion;
 
     public CodeProject() {
     }
 
-    public CodeProject(String scId, String projectName, String packageName, String appName, String versionCode, String versionName) {
+    public CodeProject(String scId, String projectName, String packageName, String appName, String versionCode, String versionName, String minSdkVersion) {
         this.scId = scId;
         this.projectName = projectName;
         this.packageName = packageName;
         this.appName = appName;
         this.versionCode = versionCode;
         this.versionName = versionName;
+        this.minSdkVersion = minSdkVersion;
     }
 
     public String getScId() {
@@ -76,6 +78,14 @@ public class CodeProject {
 
     public void setVersionName(String versionName) {
         this.versionName = versionName;
+    }
+
+    public String getMinSdkVersion() {
+        return minSdkVersion;
+    }
+
+    public void setMinSdkVersion(String minSdkVersion) {
+        this.minSdkVersion = minSdkVersion;
     }
 
     public String getProjectMyscPath() {
@@ -128,6 +138,11 @@ public class CodeProject {
         project.setAppName(yB.c(metadata, "my_app_name"));
         project.setVersionCode(yB.c(metadata, "sc_ver_code"));
         project.setVersionName(yB.c(metadata, "sc_ver_name"));
+        String minSdk = yB.c(metadata, "sc_min_sdk");
+        if (minSdk.isEmpty()) {
+            minSdk = "26";
+        }
+        project.setMinSdkVersion(minSdk);
         return project;
     }
 }

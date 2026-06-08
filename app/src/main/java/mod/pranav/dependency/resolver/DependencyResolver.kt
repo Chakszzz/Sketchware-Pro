@@ -105,144 +105,147 @@ class DependencyResolver(
     }
 
     fun resolveDependency(callback: DependencyResolverCallback) = runBlocking {
-        eventReciever = callback
-        val dependency = getArtifact(groupId, artifactId, version) ?: return@runBlocking
+        synchronized(EventReciever::class.java) {
+            eventReciever = callback
+            val dependency = getArtifact(groupId, artifactId, version) ?: return@synchronized
 
-        if (dependency.extension != "jar" && dependency.extension != "aar") {
-            callback.invalidPackaging(dependency)
-            return@runBlocking
-        }
-
-        val libraryJars = listOf(
-            BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.toPath()
-                .resolve("core-lambda-stubs.jar"), Paths.get(
-                buildSettings.getValue(
-                    BuildSettings.SETTING_ANDROID_JAR_PATH,
-                    BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.resolve("android.jar").absolutePath
-                )
-            )
-        )
-        val dependencyClasspath = mutableListOf<Path>()
-
-        val classpath = buildSettings.getValue(BuildSettings.SETTING_CLASSPATH, "")
-
-        classpath.split(":").forEach {
-            if (it.isEmpty()) return@forEach
-            dependencyClasspath.add(Paths.get(it))
-        }
-
-        dependency.downloadTo(
-            File(downloadPath + "/${dependency.artifactId}-v${dependency.version}/classes.${dependency.extension}")
-                .apply {
-                    parentFile?.mkdirs()
-                }
-        )
-
-        if (dependency.extension == "aar") {
-            callback.unzipping(dependency)
-            unzip(
-                Paths.get(
-                    downloadPath,
-                    "${dependency.artifactId}-v${dependency.version}",
-                    "classes.aar"
-                )
-            )
-            Files.delete(
-                Paths.get(
-                    downloadPath,
-                    "${dependency.artifactId}-v${dependency.version}",
-                    "classes.aar"
-                )
-            )
-            val packageName = findPackageName(
-                Paths.get(downloadPath, "${dependency.artifactId}-v${dependency.version}")
-                    .toAbsolutePath().toString(),
-                dependency.groupId
-            )
-            Paths.get(downloadPath, "${dependency.artifactId}-v${dependency.version}", "config")
-                .writeText(packageName)
-        }
-
-        val jar = Paths.get(
-            downloadPath,
-            "${dependency.artifactId}-v${dependency.version}",
-            "classes.jar"
-        )
-
-        callback.dexing(dependency)
-        try {
-            compileJar(jar, dependencyClasspath, libraryJars)
-            callback.onResolutionComplete(dependency)
-        } catch (e: Exception) {
-            callback.dexingFailed(dependency, e)
-        }
-
-        if (skipDependencies) {
-            callback.onSkippingResolution(dependency)
-            callback.onTaskCompleted(listOf("${dependency.artifactId}-v${dependency.version}"))
-            return@runBlocking
-        }
-        dependency.resolveDependencyTree()
-
-        dependency.getAllDependencies().forEach { dep ->
-            println("Resolving dependency: ${dep.artifactId} v${dep.version}")
-            if (dep.extension != "jar" && dep.extension != "aar") {
-                callback.invalidPackaging(dep)
-                return@forEach
+            if (dependency.extension != "jar" && dependency.extension != "aar") {
+                callback.invalidPackaging(dependency)
+                return@synchronized
             }
 
-            if (dep.version.isEmpty()) {
-                callback.onVersionNotFound(dep)
-                return@forEach
+            val libraryJars = listOf(
+                BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.toPath()
+                    .resolve("core-lambda-stubs.jar"), Paths.get(
+                    buildSettings.getValue(
+                        BuildSettings.SETTING_ANDROID_JAR_PATH,
+                        BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.resolve("android.jar").absolutePath
+                    )
+                )
+            )
+            val dependencyClasspath = mutableListOf<Path>()
+
+            val classpath = buildSettings.getValue(BuildSettings.SETTING_CLASSPATH, "")
+
+            classpath.split(":").forEach {
+                if (it.isEmpty()) return@forEach
+                dependencyClasspath.add(Paths.get(it))
             }
 
-            val path = Paths.get(
+            dependency.downloadTo(
+                File(downloadPath + "/${dependency.artifactId}-v${dependency.version}/classes.${dependency.extension}")
+                    .apply {
+                        parentFile?.mkdirs()
+                    }
+            )
+
+            if (dependency.extension == "aar") {
+                callback.unzipping(dependency)
+                unzip(
+                    Paths.get(
+                        downloadPath,
+                        "${dependency.artifactId}-v${dependency.version}",
+                        "classes.aar"
+                    )
+                )
+                Files.delete(
+                    Paths.get(
+                        downloadPath,
+                        "${dependency.artifactId}-v${dependency.version}",
+                        "classes.aar"
+                    )
+                )
+                val packageName = findPackageName(
+                    Paths.get(downloadPath, "${dependency.artifactId}-v${dependency.version}")
+                        .toAbsolutePath().toString(),
+                    dependency.groupId
+                )
+                Paths.get(downloadPath, "${dependency.artifactId}-v${dependency.version}", "config")
+                    .writeText(packageName)
+            }
+
+            val jar = Paths.get(
                 downloadPath,
-                "${dep.artifactId}-v${dep.version}",
-                "classes.${dep.extension}"
+                "${dependency.artifactId}-v${dependency.version}",
+                "classes.jar"
             )
 
-            Files.createDirectories(path.parent)
-
-            dep.downloadTo(File(path.toString()))
-
-            if (dep.extension == "aar") {
-                callback.unzipping(dep)
-                unzip(path)
-                Files.delete(path)
-                val packageName =
-                    findPackageName(path.parent.toAbsolutePath().toString(), dep.groupId)
-                path.parent.resolve("config").writeText(packageName)
-            }
-
-            val jar = if (dep.extension == "jar") path else Paths.get(
-                downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar"
-            )
-            if (Files.notExists(jar)) {
-                callback.onDependenciesNotFound(dep)
-                return@forEach
-            }
-
-            dependencyClasspath.add(jar)
-        }
-
-        dependency.getAllDependencies().forEach { dep ->
-            val jar = Paths.get(downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar")
-
-            callback.dexing(dep)
+            callback.dexing(dependency)
             try {
-                compileJar(
-                    jar, dependencyClasspath.toMutableList().apply { remove(jar) }, libraryJars
-                )
-                callback.onResolutionComplete(dep)
+                compileJar(jar, dependencyClasspath, libraryJars)
+                callback.onResolutionComplete(dependency)
             } catch (e: Exception) {
-                callback.dexingFailed(dep, e)
-                return@forEach
+                callback.dexingFailed(dependency, e)
             }
-        }
 
-        callback.onTaskCompleted(
-            dependency.getAllDependencies().map { "${it.artifactId}-v${it.version}" })
+            if (skipDependencies) {
+                callback.onSkippingResolution(dependency)
+                callback.onTaskCompleted(listOf("${dependency.artifactId}-v${dependency.version}"))
+                return@synchronized
+            }
+            dependency.resolveDependencyTree()
+
+            dependency.getAllDependencies().forEach { dep ->
+                println("Resolving dependency: ${dep.artifactId} v${dep.version}")
+                if (dep.extension != "jar" && dep.extension != "aar") {
+                    callback.invalidPackaging(dep)
+                    return@forEach
+                }
+
+                if (dep.version.isEmpty()) {
+                    callback.onVersionNotFound(dep)
+                    return@forEach
+                }
+
+                val path = Paths.get(
+                    downloadPath,
+                    "${dep.artifactId}-v${dep.version}",
+                    "classes.${dep.extension}"
+                )
+
+                Files.createDirectories(path.parent)
+
+                dep.downloadTo(File(path.toString()))
+
+                if (dep.extension == "aar") {
+                    callback.unzipping(dep)
+                    unzip(path)
+                    Files.delete(path)
+                    val packageName =
+                        findPackageName(path.parent.toAbsolutePath().toString(), dep.groupId)
+                    path.parent.resolve("config").writeText(packageName)
+                }
+
+                val jar = if (dep.extension == "jar") path else Paths.get(
+                    downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar"
+                )
+                if (Files.notExists(jar)) {
+                    callback.onDependenciesNotFound(dep)
+                    return@forEach
+                }
+
+                dependencyClasspath.add(jar)
+            }
+
+            dependency.getAllDependencies().forEach { dep ->
+                val jar = Paths.get(downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar")
+
+                callback.dexing(dep)
+                try {
+                    compileJar(
+                        jar, dependencyClasspath.toMutableList().apply { remove(jar) }, libraryJars
+                    )
+                    callback.onResolutionComplete(dep)
+                } catch (e: Exception) {
+                    callback.dexingFailed(dep, e)
+                    return@forEach
+                }
+            }
+
+            callback.onTaskCompleted(
+                dependency.getAllDependencies().map { "${it.artifactId}-v${it.version}" })
+        }
+    }
     }
 
     private fun findPackageName(path: String, defaultValue: String): String {

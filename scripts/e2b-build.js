@@ -225,8 +225,16 @@ async function main() {
 
   try {
     await sandbox.files.write(remoteArchive, createReadStream(options.archive));
+    const buildEnv = {};
+    if (process.env.GOOGLE_SERVICES_JSON) {
+      buildEnv.GOOGLE_SERVICES_JSON = process.env.GOOGLE_SERVICES_JSON;
+    }
+    if (process.env.SKETCHUB_API_KEY) {
+      buildEnv.SKETCHUB_API_KEY = process.env.SKETCHUB_API_KEY;
+    }
     const result = await sandbox.commands.run(`bash -lc ${shellQuote(buildSteps.join(" && "))}`, {
       timeoutMs: options.timeoutMs,
+      env: buildEnv,
     });
 
     console.log("BUILD_STDOUT_TAIL_START");

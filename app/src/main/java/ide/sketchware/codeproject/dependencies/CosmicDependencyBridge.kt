@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import mod.pranav.dependency.resolver.DependencyResolver as PranavResolver
 import org.cosmic.ide.dependency.resolver.api.Artifact
 import org.cosmic.ide.dependency.resolver.api.Repository
+import org.cosmic.ide.dependency.resolver.api.EventReciever
 import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
@@ -29,60 +30,62 @@ object CosmicDependencyBridge {
         outputDir: File,
         listener: DependencyResolver.ResolveListener
     ) {
-        try {
-            ensureRepositories()
-            // The library calls into a process-wide event receiver. Save the
-            // current one, install a no-op for our run, and restore it afterward
-            // so we don't leave another caller's receiver pointing at our stub.
-            val previousReceiver = eventReciever
-            eventReciever = object : PranavResolver.DependencyResolverCallback() {}
-
-            if (!outputDir.exists()) outputDir.mkdirs()
-
-            val resolvedJars = ArrayList<File>()
-            val errors = ArrayList<String>()
-            val warnings = ArrayList<String>()
-            val seen = HashSet<String>()
-
+        synchronized(EventReciever::class.java) {
             try {
-                runBlocking {
-                    for (decl in declarations) {
-                        listener.onProgress("Resolving ${decl.groupId}:${decl.artifactId}...")
-                        try {
-                            val artifact = getArtifact(decl.groupId, decl.artifactId, decl.version)
-                            if (artifact == null) {
-                                errors.add("$decl: not found in any repository")
-                                continue
-                            }
+                ensureRepositories()
+                // The library calls into a process-wide event receiver. Save the
+                // current one, install a no-op for our run, and restore it afterward
+                // so we don't leave another caller's receiver pointing at our stub.
+                val previousReceiver = eventReciever
+                eventReciever = object : PranavResolver.DependencyResolverCallback() {}
 
-                            // getAllDependencies() resolves the tree internally, so the
-                            // declared artifact + all transitives come back here.
-                            val all = ArrayList<Artifact>()
-                            all.add(artifact)
-                            all.addAll(artifact.getAllDependencies())
+                if (!outputDir.exists()) outputDir.mkdirs()
 
-                            for (art in all) {
-                                val key = "${art.groupId}:${art.artifactId}"
-                                if (!seen.add(key)) continue
-                                val ext = art.extension
-                                if (ext != "jar" && ext != "aar") continue
-                                if (art.version.isNullOrEmpty()) continue
-                                listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
-                                val jar = downloadJar(art, outputDir, warnings)
-                                if (jar != null) resolvedJars.add(jar)
+                val resolvedJars = ArrayList<File>()
+                val errors = ArrayList<String>()
+                val warnings = ArrayList<String>()
+                val seen = HashSet<String>()
+
+                try {
+                    runBlocking {
+                        for (decl in declarations) {
+                            listener.onProgress("Resolving ${decl.groupId}:${decl.artifactId}...")
+                            try {
+                                val artifact = getArtifact(decl.groupId, decl.artifactId, decl.version)
+                                if (artifact == null) {
+                                    errors.add("$decl: not found in any repository")
+                                    continue
+                                }
+
+                                // getAllDependencies() resolves the tree internally, so the
+                                // declared artifact + all transitives come back here.
+                                val all = ArrayList<Artifact>()
+                                all.add(artifact)
+                                all.addAll(artifact.getAllDependencies())
+
+                                for (art in all) {
+                                    val key = "${art.groupId}:${art.artifactId}"
+                                    if (!seen.add(key)) continue
+                                    val ext = art.extension
+                                    if (ext != "jar" && ext != "aar") continue
+                                    if (art.version.isNullOrEmpty()) continue
+                                    listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
+                                    val jar = downloadJar(art, outputDir, warnings)
+                                    if (jar != null) resolvedJars.add(jar)
+                                }
+                            } catch (e: Exception) {
+                                errors.add("$decl: ${e.message ?: "resolution failed"}")
                             }
-                        } catch (e: Exception) {
-                            errors.add("$decl: ${e.message ?: "resolution failed"}")
                         }
                     }
+                } finally {
+                    eventReciever = previousReceiver
                 }
-            } finally {
-                eventReciever = previousReceiver
-            }
 
-            dispatchResult(listener, resolvedJars, errors, warnings)
-        } catch (e: Exception) {
-            listener.onError(e.message ?: "Dependency resolution failed")
+                dispatchResult(listener, resolvedJars, errors, warnings)
+            } catch (e: Exception) {
+                listener.onError(e.message ?: "Dependency resolution failed")
+            }
         }
     }
 

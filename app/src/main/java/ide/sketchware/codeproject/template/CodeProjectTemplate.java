@@ -61,10 +61,10 @@ public class CodeProjectTemplate {
     private static String generateMainActivity(CodeProject project) {
         return "package " + project.getPackageName() + ";\n"
                 + "\n"
+                + "import android.app.Activity;\n"
                 + "import android.os.Bundle;\n"
-                + "import androidx.appcompat.app.AppCompatActivity;\n"
                 + "\n"
-                + "public class MainActivity extends AppCompatActivity {\n"
+                + "public class MainActivity extends Activity {\n"
                 + "\n"
                 + "    @Override\n"
                 + "    protected void onCreate(Bundle savedInstanceState) {\n"
@@ -122,10 +122,10 @@ public class CodeProjectTemplate {
     private static String generateStyles() {
         return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                 + "<resources>\n"
-                + "    <style name=\"AppTheme\" parent=\"Theme.AppCompat.Light.DarkActionBar\">\n"
-                + "        <item name=\"colorPrimary\">@color/colorPrimary</item>\n"
-                + "        <item name=\"colorPrimaryDark\">@color/colorPrimaryDark</item>\n"
-                + "        <item name=\"colorAccent\">@color/colorAccent</item>\n"
+                + "    <style name=\"AppTheme\" parent=\"android:Theme.Material.Light.DarkActionBar\">\n"
+                + "        <item name=\"android:colorPrimary\">@color/colorPrimary</item>\n"
+                + "        <item name=\"android:colorPrimaryDark\">@color/colorPrimaryDark</item>\n"
+                + "        <item name=\"android:colorAccent\">@color/colorAccent</item>\n"
                 + "    </style>\n"
                 + "</resources>\n";
     }

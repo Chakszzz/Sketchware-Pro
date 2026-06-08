@@ -150,4 +150,15 @@ final class CodeProjectEditorSupport {
             return e.toString();
         }
     }
+
+    static String validateLayoutXmlWellFormed(String xml) {
+        try {
+            javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+            builder.parse(new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return null;
+        } catch (Exception e) {
+            return e.getMessage();
+        }
+    }
 }

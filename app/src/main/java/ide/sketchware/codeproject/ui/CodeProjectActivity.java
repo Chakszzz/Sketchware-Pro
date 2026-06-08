@@ -676,7 +676,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
 
     private boolean validateTabBeforeSave(OpenFileTab tab) {
         if (CodeProjectEditorSupport.isLayoutXmlFile(project, tab.getFile())) {
-            String validationError = CodeProjectEditorSupport.validateLayoutXml(tab.getContent());
+            String validationError = CodeProjectEditorSupport.validateLayoutXmlWellFormed(tab.getContent());
             if (validationError != null) {
                 SketchwareUtil.toast(validationError);
                 return false;
