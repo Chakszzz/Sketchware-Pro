@@ -219,6 +219,24 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
                     return;
                 }
 
+                try {
+                    var parser = new ViewBeanParser(newContent);
+                    parser.setSkipRoot(true);
+                    java.util.ArrayList<ViewBean> parsedLayout = parser.parse();
+                    for (ViewBean viewBean : parsedLayout) {
+                        var detector = new ide.sketchware.utility.relativelayout.CircularDependencyDetector(parsedLayout, viewBean);
+                        for (String attr : viewBean.parentAttributes.keySet()) {
+                            String targetId = viewBean.parentAttributes.get(attr);
+                            if (!detector.isLegalAttribute(targetId, attr)) {
+                                SketchwareUtil.toastError("Circular dependency found in \"" + viewBean.name + "\"");
+                                return;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Ignore parsing issues from ViewBeanParser during save (e.g. custom views)
+                }
+
                 content = newContent;
                 if (!isEdited) {
                     isEdited = true;
@@ -235,9 +253,12 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
 
     private static boolean isWellFormedXml(String xml) {
         try {
-            var factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
-            var builder = factory.newDocumentBuilder();
-            builder.parse(new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            var parser = android.util.Xml.newPullParser();
+            parser.setInput(new java.io.StringReader(xml));
+            int eventType = parser.getEventType();
+            while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                eventType = parser.next();
+            }
             return true;
         } catch (Exception e) {
             return false;

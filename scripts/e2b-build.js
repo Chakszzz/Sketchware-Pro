@@ -23,6 +23,7 @@ function parseArgs(argv) {
     timeoutMs: Number(process.env.E2B_TIMEOUT_MS || 60 * 60 * 1000),
     release: false,
     out: "",
+    allowUnsigned: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     else if (arg === "--timeout-ms") options.timeoutMs = Number(argv[++index]);
     else if (arg === "--release") options.release = true;
     else if (arg === "--out") options.out = argv[++index];
+    else if (arg === "--allow-unsigned") options.allowUnsigned = true;
     else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -68,6 +70,7 @@ Options:
   --archive <path>      Local tarball path (default: ${defaultArchive})
   --timeout-ms <ms>     Sandbox and build timeout (default: 3600000)
   --release            Build release APK (assembleRelease) instead of debug APK (assembleDebug)
+  --allow-unsigned     Allow fallback to unsigned APK for release builds
   --out <path>         Local file path to download the compiled APK to (default: ./app-release.apk or ./app-debug.apk)
 
 Environment:
@@ -205,6 +208,7 @@ async function main() {
 
   const repoBasename = path.basename(repoRoot);
   const isRelease = options.release;
+  const allowUnsigned = options.allowUnsigned;
   const buildTask = isRelease ? "assembleRelease" : "assembleDebug";
 
   const buildSteps = [
@@ -291,6 +295,10 @@ async function main() {
     if (candidates.includes(expectedApk)) {
       remoteApkPath = expectedApk;
     } else {
+      if (isRelease && !allowUnsigned) {
+        throw new Error(`Expected signed release APK at ${expectedApk} was not found. If this is intentional and you wish to allow unsigned builds, pass the --allow-unsigned flag.`);
+      }
+
       const getPriority = (p) => {
         const name = path.basename(p);
         if (isRelease) {
