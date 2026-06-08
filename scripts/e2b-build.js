@@ -97,9 +97,13 @@ function requireE2B() {
     return require("e2b");
   } catch (localError) {
     try {
-      return createRequire("/root/nusantaraai/package.json")("e2b");
+      return createRequire(path.join(__dirname, "package.json"))("e2b");
     } catch {
-      throw localError;
+      try {
+        return createRequire("/root/nusantaraai/package.json")("e2b");
+      } catch {
+        throw localError;
+      }
     }
   }
 }
@@ -247,18 +251,32 @@ async function main() {
     }
     console.log("BUILD_EXIT_CODE=0");
 
-    const findResult = await sandbox.commands.run(`find /home/user/workspace/${repoBasename}/app/build/outputs/apk -name "*.apk"`);
-    const apkPaths = findResult.stdout.trim().split("\n").filter(p => p.trim().endsWith(".apk"));
-    if (apkPaths.length > 0) {
-      const remoteApkPath = apkPaths[0].trim();
-      console.log(`Downloading APK from sandbox: ${remoteApkPath}`);
-      const fileBytes = await sandbox.files.read(remoteApkPath, { format: "bytes" });
-      const localApkPath = options.out || (isRelease ? "app-release.apk" : "app-debug.apk");
-      writeFileSync(localApkPath, Buffer.from(fileBytes));
-      console.log(`Successfully downloaded APK to: ${localApkPath}`);
+    const apkBaseDir = `/home/user/workspace/${repoBasename}/app/build/outputs/apk`;
+    const expectedApk = isRelease ? `${apkBaseDir}/release/app-release.apk` : `${apkBaseDir}/debug/app-debug.apk`;
+
+    let remoteApkPath;
+    const checkExpected = await sandbox.commands.run(`test -f ${shellQuote(expectedApk)} && echo "EXISTS" || echo "MISSING"`);
+    if (checkExpected.stdout.trim() === "EXISTS") {
+      remoteApkPath = expectedApk;
     } else {
-      console.warn("No APK files found in sandbox build output directory.");
+      const findResult = await sandbox.commands.run(`find ${shellQuote(apkBaseDir)} -name "*.apk" | sort`);
+      const apkPaths = findResult.stdout.trim().split("\n").filter(p => p.trim().endsWith(".apk"));
+      if (apkPaths.length === 0) {
+        throw new Error(`No APK files found in sandbox build output directory: ${apkBaseDir}`);
+      }
+      if (apkPaths.length > 1) {
+        console.error("Multiple APK candidates found. Please ensure only the expected build variant is produced:");
+        apkPaths.forEach(p => console.error(`  ${p.trim()}`));
+        throw new Error(`Ambiguous APK selection: ${apkPaths.length} APKs found but expected exactly one at ${expectedApk}`);
+      }
+      remoteApkPath = apkPaths[0].trim();
     }
+
+    console.log(`Downloading APK from sandbox: ${remoteApkPath}`);
+    const fileBytes = await sandbox.files.read(remoteApkPath, { format: "bytes" });
+    const localApkPath = options.out || (isRelease ? "app-release.apk" : "app-debug.apk");
+    writeFileSync(localApkPath, Buffer.from(fileBytes));
+    console.log(`Successfully downloaded APK to: ${localApkPath}`);
   } catch (error) {
     console.log("BUILD_FAILED");
     if (error.stdout) {

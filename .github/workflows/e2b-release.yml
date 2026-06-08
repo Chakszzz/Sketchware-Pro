@@ -34,7 +34,7 @@ jobs:
           node-version: 20
 
       - name: Install E2B SDK
-        run: npm install e2b
+        run: npm ci --prefix scripts
 
       - name: Compile Release APK in E2B Sandbox
         env:
