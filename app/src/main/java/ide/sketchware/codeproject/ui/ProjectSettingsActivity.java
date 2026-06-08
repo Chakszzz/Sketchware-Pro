@@ -123,6 +123,9 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
         // Update strings.xml app_name on disk
         updateAppNameInStrings(appName);
 
+        // Update manifest version/SDK attributes on disk
+        updateManifestVersions(versionCodeInt, versionName, minSdkInt);
+
         SketchwareUtil.toast(getString(R.string.code_project_settings_saved));
         setResult(RESULT_OK);
         finish();
@@ -159,6 +162,34 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
             );
             FileUtil.writeFile(stringsPath, content);
         }
+    }
+
+    private void updateManifestVersions(int versionCode, String versionName, int minSdk) {
+        CodeProject project = CodeProject.fromMetadata(metadata);
+        String manifestPath = project.getManifestPath();
+        java.io.File manifestFile = new java.io.File(manifestPath);
+        if (!manifestFile.exists()) return;
+
+        String content = FileUtil.readFile(manifestPath);
+
+        // Replace android:versionCode="..."
+        content = content.replaceFirst(
+            "android:versionCode=\"[^\"]*\"",
+            "android:versionCode=\"" + versionCode + "\""
+        );
+        // Replace android:versionName="..."
+        content = content.replaceFirst(
+            "android:versionName=\"[^\"]*\"",
+            java.util.regex.Matcher.quoteReplacement(
+                "android:versionName=\"" + versionName + "\"")
+        );
+        // Replace android:minSdkVersion="..."
+        content = content.replaceFirst(
+            "android:minSdkVersion=\"[^\"]*\"",
+            "android:minSdkVersion=\"" + minSdk + "\""
+        );
+
+        FileUtil.writeFile(manifestPath, content);
     }
 
     /**
