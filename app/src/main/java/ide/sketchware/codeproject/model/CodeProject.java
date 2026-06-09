@@ -140,7 +140,7 @@ public class CodeProject {
         project.setVersionName(yB.c(metadata, "sc_ver_name"));
         String minSdk = yB.c(metadata, "sc_min_sdk");
         if (minSdk.isEmpty()) {
-            minSdk = "26";
+            minSdk = "21";
         }
         project.setMinSdkVersion(minSdk);
         return project;

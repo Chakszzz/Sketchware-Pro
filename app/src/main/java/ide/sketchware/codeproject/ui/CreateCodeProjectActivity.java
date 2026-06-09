@@ -61,7 +61,7 @@ public class CreateCodeProjectActivity extends BaseAppCompatActivity {
         metadata.put("my_app_name", appName);
         metadata.put("sc_ver_code", "1");
         metadata.put("sc_ver_name", "1.0");
-        metadata.put("sc_min_sdk", "26");
+        metadata.put("sc_min_sdk", "21");
         metadata.put("sketchware_ver", 150);
         metadata.put(CodeProject.KEY_PROJECT_TYPE, CodeProject.PROJECT_TYPE_CODE);
 

@@ -45,7 +45,7 @@ public class CodeProjectTemplate {
         }
         String minSdkVersion = project.getMinSdkVersion();
         if (minSdkVersion == null || minSdkVersion.isEmpty()) {
-            minSdkVersion = "26";
+            minSdkVersion = "21";
         }
 
         return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
