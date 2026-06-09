@@ -203,7 +203,7 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
             }
         }
 
-        // Ensure <uses-sdk ... /> element exists
+        // Ensure <uses-sdk ... /> element exists and contains android:minSdkVersion
         if (!content.contains("<uses-sdk")) {
             // Insert <uses-sdk android:minSdkVersion="1" /> right after <manifest ...> tag
             manifestMatcher = java.util.regex.Pattern.compile("<manifest\\b([^>]*)>").matcher(content);
@@ -211,6 +211,23 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
                 content = content.substring(0, manifestMatcher.end())
                         + "\n    <uses-sdk android:minSdkVersion=\"1\" />"
                         + content.substring(manifestMatcher.end());
+            }
+        } else {
+            java.util.regex.Matcher sdkMatcher = java.util.regex.Pattern.compile("<uses-sdk\\b([^>]*)>").matcher(content);
+            if (sdkMatcher.find()) {
+                String sdkAttrs = sdkMatcher.group(1);
+                if (!sdkAttrs.contains("android:minSdkVersion")) {
+                    String trimmed = sdkAttrs.trim();
+                    String newSdkAttrs;
+                    if (trimmed.endsWith("/")) {
+                        newSdkAttrs = " " + trimmed.substring(0, trimmed.length() - 1).trim() + " android:minSdkVersion=\"1\" /";
+                    } else {
+                        newSdkAttrs = sdkAttrs + " android:minSdkVersion=\"1\"";
+                    }
+                    content = content.substring(0, sdkMatcher.start())
+                            + "<uses-sdk" + newSdkAttrs + ">"
+                            + content.substring(sdkMatcher.end());
+                }
             }
         }
 

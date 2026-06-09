@@ -24,6 +24,22 @@ import java.util.zip.ZipFile
  */
 object CosmicDependencyBridge {
 
+    init {
+        runVersionChecks()
+    }
+
+    private fun runVersionChecks() {
+        check(compareVersions("1.0.0", "1.0.0-beta") > 0) { "compareVersions('1.0.0', '1.0.0-beta') failed" }
+        check(compareVersions("1.0.0-beta", "1.0.0") < 0) { "compareVersions('1.0.0-beta', '1.0.0') failed" }
+        check(compareVersions("1.0.0", "1.0.0-SNAPSHOT") > 0) { "compareVersions('1.0.0', '1.0.0-SNAPSHOT') failed" }
+        check(compareVersions("1.0.0-SNAPSHOT", "1.0.0") < 0) { "compareVersions('1.0.0-SNAPSHOT', '1.0.0') failed" }
+        check(compareVersions("1.0", "1.0.1") < 0) { "compareVersions('1.0', '1.0.1') failed" }
+        check(compareVersions("1.0.1", "1.0") > 0) { "compareVersions('1.0.1', '1.0') failed" }
+        check(compareVersions("1.0.0", "1.0.0") == 0) { "compareVersions('1.0.0', '1.0.0') failed" }
+        check(compareVersions("1.0.0-beta", "1.0.0-alpha") > 0) { "compareVersions('1.0.0-beta', '1.0.0-alpha') failed" }
+        check(compareVersions("1.0.0-beta", "1.0.0-beta.1") < 0) { "compareVersions('1.0.0-beta', '1.0.0-beta.1') failed" }
+    }
+
     @JvmStatic
     fun resolve(
         context: Context,
@@ -255,8 +271,12 @@ object CosmicDependencyBridge {
             val p1 = parts1.getOrNull(i)
             val p2 = parts2.getOrNull(i)
             if (p1 == p2) continue
-            if (p1 == null) return -1
-            if (p2 == null) return 1
+            if (p1 == null) {
+                return if (p2!!.toIntOrNull() == null) 1 else -1
+            }
+            if (p2 == null) {
+                return if (p1!!.toIntOrNull() == null) -1 else 1
+            }
 
             val n1 = p1.toIntOrNull()
             val n2 = p2.toIntOrNull()
