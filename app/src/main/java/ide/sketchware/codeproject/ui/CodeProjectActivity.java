@@ -803,32 +803,30 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                     @Override
                     public void onProgress(String message, int step) {
                         runOnUiThread(() -> {
-                            if (!isFinishing()) {
+                            if (!isFinishing() && !isDestroyed()) {
                                 binding.toolbar.setSubtitle(message);
                             }
                         });
                     }
                 });
                 runOnUiThread(() -> {
-                    if (!isFinishing()) {
-                        restoreActiveFileSubtitle();
-                        clearInlineErrors();
-                        promptInstallApk(apk);
-                    }
                     isBuilding = false;
                     setBuildMenuEnabled(true);
+                    if (isFinishing() || isDestroyed()) return;
+                    restoreActiveFileSubtitle();
+                    clearInlineErrors();
+                    promptInstallApk(apk);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    if (!isFinishing()) {
-                        restoreActiveFileSubtitle();
-                        String errorMsg = e.getMessage() != null ? e.getMessage() : "Unknown error";
-                        showErrorPanel(errorMsg);
-                        applyInlineErrors(errorMsg);
-                        SketchwareUtil.toast(getString(R.string.code_project_build_failed));
-                    }
                     isBuilding = false;
                     setBuildMenuEnabled(true);
+                    if (isFinishing() || isDestroyed()) return;
+                    restoreActiveFileSubtitle();
+                    String errorMsg = e.getMessage() != null ? e.getMessage() : "Unknown error";
+                    showErrorPanel(errorMsg);
+                    applyInlineErrors(errorMsg);
+                    SketchwareUtil.toast(getString(R.string.code_project_build_failed));
                 });
             }
         }).start();
