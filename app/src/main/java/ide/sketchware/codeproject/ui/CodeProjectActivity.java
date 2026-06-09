@@ -527,6 +527,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         activeTabIndex = index;
         OpenFileTab tab = openTabs.get(index);
         currentFile = tab.getFile();
+        binding.editor.setEditable(true);
 
         // Load content into editor (Content object preserves undo/redo history)
         ignoreTextChange = true;
@@ -573,7 +574,31 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         } else {
             binding.tabStrip.setVisibility(View.VISIBLE);
             tabAdapter.setTabs(openTabs);
-            tabAdapter.setActiveIndex(activeTabIndex);
+            if (activeTabIndex >= 0 && activeTabIndex < openTabs.size()) {
+                tabAdapter.setActiveIndex(activeTabIndex);
+            } else {
+                tabAdapter.setActiveIndex(-1);
+            }
+        }
+        updateMenuState();
+    }
+
+    private void updateMenuState() {
+        android.view.Menu menu = binding.toolbar.getMenu();
+        if (menu != null) {
+            boolean hasFile = !openTabs.isEmpty();
+            android.view.MenuItem saveItem = menu.findItem(R.id.action_save);
+            if (saveItem != null) saveItem.setEnabled(hasFile);
+            android.view.MenuItem undoItem = menu.findItem(R.id.action_undo);
+            if (undoItem != null) undoItem.setEnabled(hasFile);
+            android.view.MenuItem redoItem = menu.findItem(R.id.action_redo);
+            if (redoItem != null) redoItem.setEnabled(hasFile);
+            android.view.MenuItem searchItem = menu.findItem(R.id.action_search);
+            if (searchItem != null) searchItem.setEnabled(hasFile);
+            android.view.MenuItem formatItem = menu.findItem(R.id.action_format_file);
+            if (formatItem != null) formatItem.setEnabled(hasFile);
+            android.view.MenuItem previewItem = menu.findItem(R.id.action_layout_preview);
+            if (previewItem != null) previewItem.setEnabled(hasFile);
         }
     }
 
@@ -613,7 +638,19 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         }
     }
 
+    /*
+     * Manual Test Scenarios:
+     * 1. Close Active Tab:
+     *    - Open A, B, C (active = B, index 1). Close B. openTabs becomes [A, C], active becomes C (index 1).
+     * 2. Close Inactive Tab Before Active:
+     *    - Open A, B, C (active = C, index 2). Close A. openTabs becomes [B, C], active remains C but index decrements to 1.
+     * 3. Close Inactive Tab After Active:
+     *    - Open A, B, C (active = A, index 0). Close C. openTabs becomes [A, B], active remains A (index 0).
+     * 4. Close Last Tab:
+     *    - Open A (active = A, index 0). Close A. openTabs becomes empty, active = -1, editor cleared and disabled.
+     */
     private void closeTab(int position) {
+        if (position < 0 || position >= openTabs.size()) return;
         openTabs.remove(position);
 
         if (openTabs.isEmpty()) {
@@ -622,18 +659,21 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
             ignoreTextChange = true;
             binding.editor.setText(new Content(""));
             ignoreTextChange = false;
+            binding.editor.setDiagnostics(new DiagnosticsContainer());
+            binding.editor.getSearcher().stopSearch();
             binding.toolbar.setSubtitle(null);
+            binding.editor.setEditable(false);
             updateTabStrip();
         } else {
             if (position == activeTabIndex) {
-                // Switch to adjacent tab (prefer left, then right)
-                int newIndex = (position > 0) ? position - 1 : 0;
+                // Switch to adjacent tab (prefer same index if still valid, else previous)
+                int newIndex = (position < openTabs.size()) ? position : position - 1;
                 activeTabIndex = -1; // Reset so switchToTab doesn't save stale buffer
                 switchToTab(newIndex);
-            } else if (position < activeTabIndex) {
-                activeTabIndex--;
-                updateTabStrip();
             } else {
+                if (position < activeTabIndex) {
+                    activeTabIndex--;
+                }
                 updateTabStrip();
             }
         }
@@ -992,6 +1032,10 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         if (logcatPanel != null) {
             logcatPanel.stop();
         }
+        if (binding != null) {
+            binding.editor.release();
+            binding = null;
+        }
     }
 
     // ==================== Search & Replace ====================
@@ -1235,9 +1279,30 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         setBuildMenuEnabled(false);
 
         // Show progress
-        android.app.ProgressDialog progress = new android.app.ProgressDialog(this);
-        progress.setMessage(getString(R.string.code_project_syncing_deps));
-        progress.setCancelable(false);
+        android.widget.LinearLayout loadingView = new android.widget.LinearLayout(this);
+        loadingView.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        loadingView.setPadding(48, 48, 48, 48);
+        loadingView.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        android.widget.ProgressBar progressBar = new android.widget.ProgressBar(this);
+        progressBar.setIndeterminate(true);
+        android.widget.LinearLayout.LayoutParams pbParams =
+            new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        pbParams.setMarginEnd(32);
+        progressBar.setLayoutParams(pbParams);
+
+        final android.widget.TextView progressText = new android.widget.TextView(this);
+        progressText.setText(getString(R.string.code_project_syncing_deps));
+
+        loadingView.addView(progressBar);
+        loadingView.addView(progressText);
+
+        final androidx.appcompat.app.AlertDialog progress = new MaterialAlertDialogBuilder(this)
+                .setView(loadingView)
+                .setCancelable(false)
+                .create();
         progress.show();
 
         File resolvedDir = new File(project.getLibsPath(), "resolved");
@@ -1255,7 +1320,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                     public void onProgress(String message) {
                         runOnUiThread(() -> {
                             if (!isFinishing() && !isDestroyed()) {
-                                progress.setMessage(message);
+                                progressText.setText(message);
                             }
                         });
                     }
