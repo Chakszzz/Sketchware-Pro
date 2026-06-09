@@ -992,6 +992,9 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         if (logcatPanel != null) {
             logcatPanel.stop();
         }
+        if (binding != null) {
+            binding.editor.release();
+        }
     }
 
     // ==================== Search & Replace ====================
@@ -1235,9 +1238,14 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         setBuildMenuEnabled(false);
 
         // Show progress
-        android.app.ProgressDialog progress = new android.app.ProgressDialog(this);
-        progress.setMessage(getString(R.string.code_project_syncing_deps));
-        progress.setCancelable(false);
+        android.widget.TextView progressMessage = new android.widget.TextView(this);
+        progressMessage.setPadding(48, 32, 48, 8);
+        progressMessage.setText(R.string.code_project_syncing_deps);
+        android.app.AlertDialog progress = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.code_project_syncing_deps)
+                .setView(progressMessage)
+                .setCancelable(false)
+                .create();
         progress.show();
 
         File resolvedDir = new File(project.getLibsPath(), "resolved");
@@ -1255,7 +1263,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                     public void onProgress(String message) {
                         runOnUiThread(() -> {
                             if (!isFinishing() && !isDestroyed()) {
-                                progress.setMessage(message);
+                                progressMessage.setText(message);
                             }
                         });
                     }

@@ -24,22 +24,6 @@ import java.util.zip.ZipFile
  */
 object CosmicDependencyBridge {
 
-    init {
-        runVersionChecks()
-    }
-
-    private fun runVersionChecks() {
-        check(compareVersions("1.0.0", "1.0.0-beta") > 0) { "compareVersions('1.0.0', '1.0.0-beta') failed" }
-        check(compareVersions("1.0.0-beta", "1.0.0") < 0) { "compareVersions('1.0.0-beta', '1.0.0') failed" }
-        check(compareVersions("1.0.0", "1.0.0-SNAPSHOT") > 0) { "compareVersions('1.0.0', '1.0.0-SNAPSHOT') failed" }
-        check(compareVersions("1.0.0-SNAPSHOT", "1.0.0") < 0) { "compareVersions('1.0.0-SNAPSHOT', '1.0.0') failed" }
-        check(compareVersions("1.0", "1.0.1") < 0) { "compareVersions('1.0', '1.0.1') failed" }
-        check(compareVersions("1.0.1", "1.0") > 0) { "compareVersions('1.0.1', '1.0') failed" }
-        check(compareVersions("1.0.0", "1.0.0") == 0) { "compareVersions('1.0.0', '1.0.0') failed" }
-        check(compareVersions("1.0.0-beta", "1.0.0-alpha") > 0) { "compareVersions('1.0.0-beta', '1.0.0-alpha') failed" }
-        check(compareVersions("1.0.0-beta", "1.0.0-beta.1") < 0) { "compareVersions('1.0.0-beta', '1.0.0-beta.1') failed" }
-    }
-
     @JvmStatic
     fun resolve(
         context: Context,

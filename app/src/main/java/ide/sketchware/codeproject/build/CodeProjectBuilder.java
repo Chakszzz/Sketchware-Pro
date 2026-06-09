@@ -382,10 +382,19 @@ public class CodeProjectBuilder {
         File androidJar = new File(BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH, "android.jar");
         libraryFiles.add(androidJar.toPath());
 
+        int minApi = 21;
+        try {
+            String minSdkStr = project.getMinSdkVersion();
+            if (minSdkStr != null && !minSdkStr.isEmpty()) {
+                minApi = Integer.parseInt(minSdkStr);
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
         com.android.tools.r8.D8.run(com.android.tools.r8.D8Command.builder()
                 .setMode(com.android.tools.r8.CompilationMode.RELEASE)
                 .setIntermediate(true)
-                .setMinApiLevel(26)
+                .setMinApiLevel(minApi)
                 .addLibraryFiles(libraryFiles)
                 .setOutput(dexDir.toPath(), com.android.tools.r8.OutputMode.DexIndexed)
                 .addProgramFiles(programFiles)

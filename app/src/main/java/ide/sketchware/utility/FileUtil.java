@@ -265,14 +265,10 @@ public class FileUtil {
 
     public static void extractFileFromZip(InputStream inputStream, File file) throws IOException {
         try (OutputStream outputStream = new FileOutputStream(file)) {
-            byte[] bArr = new byte[1024];
-            while (true) {
-                int read = inputStream.read(bArr);
-                if (read > 0) {
-                    outputStream.write(bArr, 0, read);
-                } else {
-                    return;
-                }
+            byte[] bArr = new byte[8192];
+            int read;
+            while ((read = inputStream.read(bArr)) != -1) {
+                outputStream.write(bArr, 0, read);
             }
         }
     }
