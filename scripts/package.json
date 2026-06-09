@@ -1,0 +1,8 @@
+{
+  "name": "sketchware-pro-e2b-scripts",
+  "private": true,
+  "description": "Dependencies for E2B build scripts",
+  "dependencies": {
+    "e2b": "1.13.2"
+  }
+}

@@ -12,8 +12,8 @@ android {
     def shortCommitHash = "git rev-parse --short HEAD".execute().text.trim()
 
     defaultConfig {
-        applicationId = "pro.sketchware"
-        namespace = "pro.sketchware"
+        applicationId = "ide.sketchware"
+        namespace = "ide.sketchware"
         //noinspection ExpiredTargetSdkVersion since we don't target getting Sketchware Pro on Google Play.
         targetSdk = 28
         minSdk = 26
@@ -123,6 +123,8 @@ dependencies {
     implementation libs.bundles.firebase
 
     coreLibraryDesugaring libs.desugar.jdk.libs.nio
+
+    testImplementation "junit:junit:4.13.2"
 }
 
 tasks.register('createMockGoogleServices') {
@@ -131,10 +133,7 @@ tasks.register('createMockGoogleServices') {
             new File("$projectDir/google-services.json").text = secrets
             return
         }
-        def mockFile = file("src/debug/google-services.json")
-        if (!mockFile.exists()) {
-            mockFile.parentFile.mkdirs()
-            def mockContent = """{
+        def mockContent = """{
   "project_info": {
     "project_number": "123456789000",
     "firebase_url": "https://mock-project-default-rtdb.firebaseio.com",
@@ -164,8 +163,7 @@ tasks.register('createMockGoogleServices') {
   ],
   "configuration_version": "1"
 }"""
-            mockFile.text = mockContent
-        }
+        new File("$projectDir/google-services.json").text = mockContent
     }
 }
 

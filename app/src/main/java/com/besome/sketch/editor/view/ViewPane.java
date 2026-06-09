@@ -102,18 +102,18 @@ import mod.agus.jcoderz.editor.view.item.ItemTimePicker;
 import mod.agus.jcoderz.editor.view.item.ItemVideoView;
 import mod.bobur.VectorDrawableLoader;
 import mod.hey.studios.util.ProjectFile;
-import pro.sketchware.R;
-import pro.sketchware.activities.resourceseditor.components.utils.ColorsEditorManager;
-import pro.sketchware.activities.resourceseditor.components.utils.StringsEditorManager;
-import pro.sketchware.managers.inject.InjectRootLayoutManager;
-import pro.sketchware.utility.FilePathUtil;
-import pro.sketchware.utility.FileUtil;
-import pro.sketchware.utility.InjectAttributeHandler;
-import pro.sketchware.utility.InvokeUtil;
-import pro.sketchware.utility.PropertiesUtil;
-import pro.sketchware.utility.ResourceUtil;
-import pro.sketchware.utility.SvgUtils;
-import pro.sketchware.utility.ThemeUtils;
+import ide.sketchware.R;
+import ide.sketchware.activities.resourceseditor.components.utils.ColorsEditorManager;
+import ide.sketchware.activities.resourceseditor.components.utils.StringsEditorManager;
+import ide.sketchware.managers.inject.InjectRootLayoutManager;
+import ide.sketchware.utility.FilePathUtil;
+import ide.sketchware.utility.FileUtil;
+import ide.sketchware.utility.InjectAttributeHandler;
+import ide.sketchware.utility.InvokeUtil;
+import ide.sketchware.utility.PropertiesUtil;
+import ide.sketchware.utility.ResourceUtil;
+import ide.sketchware.utility.SvgUtils;
+import ide.sketchware.utility.ThemeUtils;
 
 public class ViewPane extends RelativeLayout {
     private final String stringsStart = "@string/";
@@ -126,6 +126,7 @@ public class ViewPane extends RelativeLayout {
     private TextView highlightedTextView;
     private kC resourcesManager;
     private String sc_id;
+    private String explicitResourceRoot;
     private SvgUtils svgUtils;
     private ColorsEditorManager colorsEditorManager;
     private int defaultTextColor = 0; // need to save the original color before changes, cause using getDefaultColor() returns the current text color
@@ -224,9 +225,14 @@ public class ViewPane extends RelativeLayout {
     }
 
     public void initialize(String sc_id, boolean isPreviewMode) {
+        initialize(sc_id, isPreviewMode, null);
+    }
+
+    public void initialize(String sc_id, boolean isPreviewMode, String resourceRoot) {
         this.sc_id = sc_id;
+        explicitResourceRoot = resourceRoot;
         material3LibraryManager = new Material3LibraryManager(getContext(), sc_id);
-        colorsEditorManager = new ColorsEditorManager();
+        colorsEditorManager = new ColorsEditorManager(sc_id, explicitResourceRoot);
         int viewEditorThemeOverlay = material3LibraryManager.getViewEditorThemeOverlay();
         context = new ContextThemeWrapper(getContext(), viewEditorThemeOverlay);
         svgUtils = new SvgUtils(context);
@@ -1305,7 +1311,9 @@ public class ViewPane extends RelativeLayout {
         if (sc_id == null) {
             return key;
         }
-        String filePath = wq.b(sc_id) + "/files/resource/values/strings.xml";
+        String filePath = TextUtils.isEmpty(explicitResourceRoot)
+                ? wq.b(sc_id) + "/files/resource/values/strings.xml"
+                : new File(new File(explicitResourceRoot, "values"), "strings.xml").getAbsolutePath();
 
         ArrayList<HashMap<String, Object>> stringsListMap = new ArrayList<>();
 
