@@ -1184,7 +1184,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
             searchFilesRecursive(sourceRoot, query, results);
 
             runOnUiThread(() -> {
-                if (isFinishing()) return;
+                if (isFinishing() || isDestroyed()) return;
                 // Discard stale results if a newer search was started
                 if (token != searchToken) return;
                 if (results.isEmpty()) {
