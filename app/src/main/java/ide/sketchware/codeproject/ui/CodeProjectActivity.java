@@ -866,6 +866,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
     }
 
     private void setBuildMenuEnabled(boolean enabled) {
+        if (binding == null) return;
         Menu menu = binding.toolbar.getMenu();
         if (menu != null) {
             MenuItem buildItem = menu.findItem(R.id.action_build);
