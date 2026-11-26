@@ -26,6 +26,7 @@ import dev.pranav.filepicker.FilePickerOptions;
 import mod.hey.studios.util.Helper;
 import ide.sketchware.R;
 import ide.sketchware.activities.main.fragments.projects.ProjectsFragment;
+import ide.sketchware.codeproject.model.CodeProject;
 import ide.sketchware.databinding.ProgressMsgBoxBinding;
 import ide.sketchware.utility.FileUtil;
 import ide.sketchware.utility.SketchwareUtil;
@@ -57,11 +58,17 @@ public class BackupRestoreManager {
     }
 
     public void backup(String sc_id, String project_name) {
-        final String localLibrariesTag = "local libraries";
-        final String customBlocksTag = "Custom Blocks";
         backupDialogStates = new HashMap<>();
         backupDialogStates.put(0, false);
         backupDialogStates.put(1, false);
+
+        if (CodeProject.isCodeProject(lC.b(sc_id))) {
+            doBackup(sc_id, project_name);
+            return;
+        }
+
+        final String localLibrariesTag = "local libraries";
+        final String customBlocksTag = "Custom Blocks";
 
         MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(act);
         dialog.setIcon(R.drawable.ic_backup);

@@ -1,0 +1,101 @@
+appId: ide.sketchware
+name: "03 - CodeProject IDE Features (Built-in Libs, ViewBinding, R8, Resources, Icons, Logcat)"
+---
+- launchApp:
+    clearState: false
+
+# Open the previously created E2E Demo App project
+- extendedWaitUntil:
+    visible: "E2E Demo App"
+    timeout: 15000
+- tapOn: "E2E Demo App"
+
+- extendedWaitUntil:
+    visible:
+      id: "editor"
+    timeout: 15000
+
+# 1. Built-in Offline Libraries picker
+- tapOn: "More options"
+- tapOn: "Built-in Libraries"
+- extendedWaitUntil:
+    visible: "Built-in Libraries"
+    timeout: 10000
+- takeScreenshot: "03a_builtin_libraries_dialog"
+- tapOn: "Cancel"
+
+# 2. Project Settings: verify ViewBinding, R8/ProGuard, StringFog & Advanced Build Settings
+- tapOn: "More options"
+- tapOn: "Project Settings"
+- extendedWaitUntil:
+    visible:
+      id: "switch_view_binding"
+    timeout: 10000
+- assertVisible:
+    id: "switch_minify_enabled"
+- tapOn:
+    id: "switch_view_binding"
+- scrollUntilVisible:
+    element:
+      id: "btn_build_settings"
+    direction: DOWN
+- assertVisible:
+    id: "switch_stringfog_enabled"
+- assertVisible:
+    id: "btn_build_settings"
+- takeScreenshot: "03b_project_settings_viewbinding"
+- tapOn:
+    id: "btn_save"
+
+- extendedWaitUntil:
+    visible:
+      id: "editor"
+    timeout: 10000
+
+# 3. Rebuild with ViewBinding enabled to verify ViewBindingBuilder end-to-end
+- tapOn:
+    id: "action_build"
+- extendedWaitUntil:
+    visible: "Build successful!"
+    timeout: 180000
+- takeScreenshot: "03c_viewbinding_build_success"
+- tapOn: "Cancel"
+
+# 4. Resources Editor
+- tapOn: "More options"
+- tapOn: "Resources"
+- extendedWaitUntil:
+    visible:
+      id: "tab_layout"
+    timeout: 10000
+- takeScreenshot: "03d_resources_editor"
+- back
+
+# 5. Material Icon Importer
+- extendedWaitUntil:
+    visible:
+      id: "editor"
+    timeout: 10000
+- tapOn: "More options"
+- tapOn: "Import Material Icon"
+- extendedWaitUntil:
+    visible:
+      id: "image_list"
+    timeout: 20000
+- takeScreenshot: "03e_import_material_icon"
+- back
+
+# 6. Logcat panel toggle
+- extendedWaitUntil:
+    visible:
+      id: "editor"
+    timeout: 10000
+- tapOn: "More options"
+- tapOn: "Logcat"
+- extendedWaitUntil:
+    visible:
+      id: "logcat_container"
+    timeout: 10000
+- takeScreenshot: "03f_logcat_panel"
+- tapOn:
+    id: "btn_close_log"

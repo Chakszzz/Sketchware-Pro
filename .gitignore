@@ -18,6 +18,7 @@ out/
 # Gradle files
 .gradle/
 build/
+!app/src/**/build/
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -68,3 +69,6 @@ fastlane/readme.md
 .androidide/
 /actions-runner
 release/
+
+# Local Android E2E test outputs
+artifacts/android-e2e/

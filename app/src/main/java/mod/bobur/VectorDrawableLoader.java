@@ -51,11 +51,31 @@ public class VectorDrawableLoader {
 
 
     public String getVectorFullPath(String sc_id, String fileName) {
+        return getVectorFullPath(sc_id, null, fileName);
+    }
+
+    public String getVectorFullPath(String sc_id, String explicitResourceRoot, String fileName) {
+        if (explicitResourceRoot != null && !explicitResourceRoot.isEmpty()) {
+            File codeProjectDrawable = new File(new File(explicitResourceRoot, "drawable"), fileName + ".xml");
+            if (codeProjectDrawable.exists()) {
+                return codeProjectDrawable.getAbsolutePath();
+            }
+        }
+        if (sc_id != null && !sc_id.isEmpty()) {
+            File codeProjectDrawable = new File(wq.d(sc_id) + "/app/src/main/res/drawable", fileName + ".xml");
+            if (codeProjectDrawable.exists()) {
+                return codeProjectDrawable.getAbsolutePath();
+            }
+        }
         return wq.b(sc_id) + "/files/resource/drawable/" + fileName + ".xml";
     }
 
     public void setImageVectorFromFile(ImageView imageView, String filePath) throws Exception {
-        VectorDrawableParser attrs = new VectorDrawableParser(FileUtil.readFile(filePath));
+        setImageVectorFromFile(imageView, filePath, null, null);
+    }
+
+    public void setImageVectorFromFile(ImageView imageView, String filePath, String sc_id, String explicitResourceRoot) throws Exception {
+        VectorDrawableParser attrs = new VectorDrawableParser(FileUtil.readFile(filePath), sc_id, explicitResourceRoot);
         String svg = attrs.toSvg();
 
         SVG svgObj = SVG.getFromString(svg);

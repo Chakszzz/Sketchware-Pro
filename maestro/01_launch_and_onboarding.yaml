@@ -1,0 +1,43 @@
+appId: ide.sketchware
+name: "01 - Cold Launch & First-Run Onboarding"
+---
+- launchApp:
+    clearState: true
+
+# Handle first-launch "Major changes in v7.0.0" bottom sheet (10s countdown -> "View changes")
+- runFlow:
+    when:
+      visible: "Major changes in v7.0.0"
+    commands:
+      - takeScreenshot: "01a_major_changes_sheet"
+      - extendedWaitUntil:
+          visible: "View changes"
+          timeout: 15000
+      - tapOn: "View changes"
+      - extendedWaitUntil:
+          visible: "Changelog"
+          timeout: 10000
+      - takeScreenshot: "01b_about_changelog"
+      - back
+
+# Dismiss optional Android 11+ storage notice if shown
+- runFlow:
+    when:
+      visible: "Android 11 storage access"
+    commands:
+      - tapOn: "Skip"
+
+# Dismiss optional storage permission dialog if shown
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+- extendedWaitUntil:
+    visible:
+      id: "create_new_project"
+    timeout: 15000
+
+- assertVisible: "New project"
+- takeScreenshot: "01c_main_screen_ready"

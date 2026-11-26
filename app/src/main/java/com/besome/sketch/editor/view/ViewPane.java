@@ -35,7 +35,6 @@ import com.besome.sketch.beans.ImageBean;
 import com.besome.sketch.beans.LayoutBean;
 import com.besome.sketch.beans.ProjectResourceBean;
 import com.besome.sketch.beans.ViewBean;
-import com.besome.sketch.design.DesignActivity;
 import com.besome.sketch.editor.manage.library.material3.Material3LibraryManager;
 import com.besome.sketch.editor.view.item.ItemAdView;
 import com.besome.sketch.editor.view.item.ItemBottomNavigationView;
@@ -440,7 +439,11 @@ public class ViewPane extends RelativeLayout {
                                     fab.setImageDrawable(drawable);
                                 }
                             };
-                            vectorDrawableLoader.setImageVectorFromFile(tempImageView, vectorDrawableLoader.getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
+                            vectorDrawableLoader.setImageVectorFromFile(
+                                    tempImageView,
+                                    vectorDrawableLoader.getVectorFullPath(sc_id, explicitResourceRoot, viewBean.image.resName),
+                                    sc_id,
+                                    explicitResourceRoot);
                         }
                     }
                 } catch (Exception exception) {
@@ -537,11 +540,14 @@ public class ViewPane extends RelativeLayout {
                         }
                     } else {
                         VectorDrawableLoader vectorDrawableLoader = new VectorDrawableLoader();
-                        vectorDrawableLoader.setImageVectorFromFile((ImageView) view, vectorDrawableLoader.getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
+                        vectorDrawableLoader.setImageVectorFromFile(
+                                (ImageView) view,
+                                vectorDrawableLoader.getVectorFullPath(sc_id, explicitResourceRoot, viewBean.image.resName),
+                                sc_id,
+                                explicitResourceRoot);
                     }
                 } catch (Exception unused2) {
                     crashlytics.recordException(unused2);
-                    FileUtil.deleteFile(new VectorDrawableLoader().getVectorFullPath(DesignActivity.sc_id, viewBean.image.resName));
                     viewBean.image.resName = "default_image";
                     ((ImageView) view).setImageResource(R.drawable.default_image);
                 }

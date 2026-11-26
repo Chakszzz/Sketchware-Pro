@@ -45,6 +45,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_builtin_libs"
+        android:title="@string/code_project_builtin_libs"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_format_file"
         android:title="@string/code_project_format_file"
         app:showAsAction="never" />
@@ -57,6 +62,11 @@
     <item
         android:id="@+id/action_resources"
         android:title="@string/code_project_resources"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_import_icon"
+        android:title="@string/code_project_import_icon"
         app:showAsAction="never" />
 
     <item

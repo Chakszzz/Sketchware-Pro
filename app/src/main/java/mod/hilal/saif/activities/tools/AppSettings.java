@@ -32,7 +32,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import dev.aldi.sayuti.editor.manage.ManageLocalLibraryActivity;
 import dev.pranav.filepicker.FilePickerCallback;
 import dev.pranav.filepicker.FilePickerDialogFragment;
 import dev.pranav.filepicker.FilePickerOptions;
@@ -42,7 +41,6 @@ import mod.hey.studios.code.SrcCodeEditor;
 import mod.hey.studios.util.Helper;
 import mod.khaled.logcat.LogReaderActivity;
 import ide.sketchware.R;
-import ide.sketchware.activities.editor.component.ManageCustomComponentActivity;
 import ide.sketchware.activities.settings.SettingsActivity;
 import ide.sketchware.databinding.ActivityAppSettingsBinding;
 import ide.sketchware.databinding.DialogSelectApkToSignBinding;
@@ -92,16 +90,11 @@ public class AppSettings extends BaseAppCompatActivity {
     private void setupPreferences(ViewGroup content) {
         var preferences = new ArrayList<LibraryCategoryView>();
 
-        LibraryCategoryView managersCategory = new LibraryCategoryView(this);
-        managersCategory.setTitle("Managers");
-        preferences.add(managersCategory);
+        LibraryCategoryView toolsCategory = new LibraryCategoryView(this);
+        toolsCategory.setTitle("Tools");
+        preferences.add(toolsCategory);
 
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_block, "Block manager", "Manage your own blocks to use in Logic Editor", new ActivityLauncher(new Intent(getApplicationContext(), BlocksManager.class))), true);
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_pull_down, "Block selector menu manager", "Manage your own block selector menus", openSettingsActivity(SettingsActivity.BLOCK_SELECTOR_MANAGER_FRAGMENT)), true);
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_component, "Component manager", "Manage your own components", new ActivityLauncher(new Intent(getApplicationContext(), ManageCustomComponentActivity.class))), true);
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_list, "Event manager", "Manage your own events", openSettingsActivity(SettingsActivity.EVENTS_MANAGER_FRAGMENT)), true);
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_box, "Local library manager", "Manage and download local libraries", new ActivityLauncher(new Intent(getApplicationContext(), ManageLocalLibraryActivity.class), new Pair<>("sc_id", "system"))), true);
-        managersCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_article, Helper.getResString(R.string.design_drawer_menu_title_logcat_reader), Helper.getResString(R.string.design_drawer_menu_subtitle_logcat_reader), new ActivityLauncher(new Intent(getApplicationContext(), LogReaderActivity.class))), false);
+        toolsCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_article, Helper.getResString(R.string.design_drawer_menu_title_logcat_reader), Helper.getResString(R.string.design_drawer_menu_subtitle_logcat_reader), new ActivityLauncher(new Intent(getApplicationContext(), LogReaderActivity.class))), false);
 
         LibraryCategoryView generalCategory = new LibraryCategoryView(this);
         generalCategory.setTitle("General");

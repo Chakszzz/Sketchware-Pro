@@ -54,9 +54,17 @@ import mod.jbk.build.compiler.bundle.AppBundleCompiler;
 import mod.jbk.export.GetKeyStoreCredentialsDialog;
 import mod.jbk.util.TestkeySignBridge;
 import ide.sketchware.R;
+import ide.sketchware.codeproject.build.CodeProjectBuilder;
+import ide.sketchware.codeproject.model.CodeProject;
 import ide.sketchware.utility.FilePathUtil;
 import ide.sketchware.utility.FileUtil;
 import ide.sketchware.utility.SketchwareUtil;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class ExportProjectActivity extends BaseAppCompatActivity {
 
@@ -164,6 +172,10 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
 
     private void exportSrc() {
         try {
+            if (CodeProject.isCodeProject(sc_metadata)) {
+                exportCodeProjectSources(CodeProject.fromMetadata(sc_metadata));
+                return;
+            }
             FileUtil.deleteFile(project_metadata.projectMyscPath);
 
             hC hCVar = new hC(sc_id);
@@ -253,6 +265,60 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                 export_source_loading_anim.setVisibility(View.GONE);
                 export_source_button.setVisibility(View.VISIBLE);
             });
+        }
+    }
+
+    private void exportCodeProjectSources(CodeProject codeProject) throws IOException {
+        File projectRoot = new File(codeProject.getProjectMyscPath());
+        if (!projectRoot.exists() || !projectRoot.isDirectory()) {
+            throw new IOException("Code project directory does not exist: " + projectRoot.getAbsolutePath());
+        }
+
+        String rawName = yB.c(sc_metadata, "my_ws_name");
+        String safeName = (rawName == null || rawName.trim().isEmpty())
+                ? "code_project_" + sc_id
+                : rawName.replaceAll("[/\\\\:*?\"<>|]", "_");
+        String exportedFilename = safeName + ".zip";
+        File exportedZip = new File(wq.s() + File.separator + "export_src", exportedFilename);
+        File parentDir = exportedZip.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+        if (exportedZip.exists() && !exportedZip.delete()) {
+            throw new IOException("Failed to overwrite existing export file: " + exportedZip.getAbsolutePath());
+        }
+
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(exportedZip))) {
+            zipCodeProjectDirectory(projectRoot, projectRoot, zos);
+        }
+        runOnUiThread(() -> initializeAfterExportedSourceViews(exportedFilename));
+    }
+
+    private void zipCodeProjectDirectory(File rootDir, File current, ZipOutputStream zos) throws IOException {
+        File[] children = current.listFiles();
+        if (children == null) return;
+        byte[] buffer = new byte[8192];
+        for (File child : children) {
+            String name = child.getName();
+            if (current.equals(rootDir) && (name.equals("bin") || name.equals("gen"))) {
+                continue;
+            }
+            if (name.equals(".resolved_tmp") || name.equals("resolved_backup") || name.equals("resolved_aar_backup")) {
+                continue;
+            }
+            String relPath = rootDir.toURI().relativize(child.toURI()).getPath();
+            if (child.isDirectory()) {
+                zipCodeProjectDirectory(rootDir, child, zos);
+            } else {
+                zos.putNextEntry(new ZipEntry(relPath));
+                try (FileInputStream in = new FileInputStream(child)) {
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        zos.write(buffer, 0, read);
+                    }
+                }
+                zos.closeEntry();
+            }
         }
     }
 
@@ -458,6 +524,11 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
             String sc_id = activity.get().sc_id;
 
             try {
+                if (CodeProject.isCodeProject(activity.get().sc_metadata)) {
+                    buildAndSignCodeProject(sc_id);
+                    return;
+                }
+
                 publishProgress("Deleting temporary files...");
                 FileUtil.deleteFile(project_metadata.projectMyscPath);
 
@@ -657,10 +728,10 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                         Security.addProvider(new BouncyCastleProvider());
                         CustomKeySigner.signZip(
                                 new ZipSigner(),
-                                wq.j(),
+                                signingKeystorePath,
                                 signingKeystorePassword,
                                 signingAliasName,
-                                signingKeystorePassword,
+                                signingAliasPassword,
                                 signingAlgorithm,
                                 builder.yq.unsignedAlignedApkPath,
                                 outputLocation
@@ -681,6 +752,88 @@ public class ExportProjectActivity extends BaseAppCompatActivity {
                 }
 
                 cancel(true);
+            }
+        }
+
+        private void buildAndSignCodeProject(String scId) throws Exception {
+            oB oBVar = new oB();
+            if (!oBVar.e(wq.o())) {
+                oBVar.f(wq.o());
+            }
+
+            CodeProject codeProject = CodeProject.fromMetadata(activity.get().sc_metadata);
+            CodeProjectBuilder codeBuilder = new CodeProjectBuilder(a, codeProject);
+            CodeProjectBuilder.BuildProgressListener progressListener = (msg, step) -> publishProgress(msg);
+
+            if (buildingAppBundle) {
+                File createdBundle = codeBuilder.buildAppBundle(progressListener);
+                if (canceled) {
+                    cancel(true);
+                    return;
+                }
+
+                publishProgress("Signing app bundle...");
+                String signedAppBundleDirectoryPath = FileUtil.getExternalStorageDir()
+                        + File.separator + "sketchware"
+                        + File.separator + "signed_aab";
+                FileUtil.makeDir(signedAppBundleDirectoryPath);
+                String aabFilename = getCorrectResultFilename(project_metadata.projectName + ".aab");
+                String outputPath = signedAppBundleDirectoryPath + File.separator + aabFilename;
+                File outFile = new File(outputPath);
+                if (outFile.exists() && !outFile.delete()) {
+                    throw new IllegalStateException("Couldn't delete file " + outFile.getAbsolutePath());
+                }
+
+                if (signWithTestkey) {
+                    ZipSigner signer = new ZipSigner();
+                    signer.setKeymode(ZipSigner.KEY_TESTKEY);
+                    signer.signZip(createdBundle.getAbsolutePath(), outputPath);
+                } else if (isResultJarSigningEnabled()) {
+                    Security.addProvider(new BouncyCastleProvider());
+                    CustomKeySigner.signZip(
+                            new ZipSigner(),
+                            signingKeystorePath,
+                            signingKeystorePassword,
+                            signingAliasName,
+                            signingAliasPassword,
+                            signingAlgorithm,
+                            createdBundle.getAbsolutePath(),
+                            outputPath
+                    );
+                } else {
+                    FileUtil.copyFile(createdBundle.getAbsolutePath(), outputPath);
+                }
+            } else {
+                File outputFile = new File(getCorrectResultFilename(project_metadata.releaseApkPath));
+                if (outputFile.exists() && !outputFile.delete()) {
+                    throw new IllegalStateException("Couldn't delete file " + outputFile.getAbsolutePath());
+                }
+
+                File alignedApk = codeBuilder.buildUnsignedAlignedApk(progressListener);
+                if (canceled) {
+                    cancel(true);
+                    return;
+                }
+
+                publishProgress("Signing APK...");
+                String outputLocation = outputFile.getAbsolutePath();
+                if (signWithTestkey) {
+                    TestkeySignBridge.signWithTestkey(alignedApk.getAbsolutePath(), outputLocation);
+                } else if (isResultJarSigningEnabled()) {
+                    Security.addProvider(new BouncyCastleProvider());
+                    CustomKeySigner.signZip(
+                            new ZipSigner(),
+                            signingKeystorePath,
+                            signingKeystorePassword,
+                            signingAliasName,
+                            signingAliasPassword,
+                            signingAlgorithm,
+                            alignedApk.getAbsolutePath(),
+                            outputLocation
+                    );
+                } else {
+                    FileUtil.copyFile(alignedApk.getAbsolutePath(), outputLocation);
+                }
             }
         }
 

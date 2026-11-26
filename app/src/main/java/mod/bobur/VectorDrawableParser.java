@@ -1,6 +1,6 @@
 package mod.bobur;
 
-import static com.besome.sketch.design.DesignActivity.sc_id;
+import java.io.File;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -287,8 +287,16 @@ public class VectorDrawableParser {
 
     private ColorsEditorManager colors;
     private String colorsXmlPath = "";
+    private final String projectScId;
+    private final String explicitResourceRoot;
 
     public VectorDrawableParser(String vectorDrawableAsString) {
+        this(vectorDrawableAsString, null, null);
+    }
+
+    public VectorDrawableParser(String vectorDrawableAsString, String projectScId, String explicitResourceRoot) {
+        this.projectScId = projectScId;
+        this.explicitResourceRoot = explicitResourceRoot;
         if (!isValidVector(vectorDrawableAsString)) {
             throw new IllegalArgumentException("Not a valid VectorDrawable XML.");
         }
@@ -381,7 +389,9 @@ public class VectorDrawableParser {
     }
 
     private ColorsEditorManager colors() {
-        if (colors == null) colors = new ColorsEditorManager();
+        if (colors == null) {
+            colors = new ColorsEditorManager(projectScId == null ? "" : projectScId, explicitResourceRoot);
+        }
         ensureColorsXmlPath();
         if (!isEmpty(colorsXmlPath)) colors.contentPath = colorsXmlPath;
         return colors;
@@ -390,14 +400,23 @@ public class VectorDrawableParser {
     private void ensureColorsXmlPath() {
         if (!isEmpty(colorsXmlPath)) return;
 
-        String p1 = wq.b(sc_id) + "/files/resource/values/colors.xml";
-        if (FileUtil.isExistFile(p1)) {
-            colorsXmlPath = p1;
-            return;
+        if (!isEmpty(explicitResourceRoot)) {
+            File explicitColors = new File(new File(explicitResourceRoot, "values"), "colors.xml");
+            if (explicitColors.exists()) {
+                colorsXmlPath = explicitColors.getAbsolutePath();
+                return;
+            }
         }
-        String p2 = wq.d(sc_id) + "/app/src/main/res/values/colors.xml";
+        if (isEmpty(projectScId)) return;
+
+        String p2 = wq.d(projectScId) + "/app/src/main/res/values/colors.xml";
         if (FileUtil.isExistFile(p2)) {
             colorsXmlPath = p2;
+            return;
+        }
+        String p1 = wq.b(projectScId) + "/files/resource/values/colors.xml";
+        if (FileUtil.isExistFile(p1)) {
+            colorsXmlPath = p1;
         }
     }
 
