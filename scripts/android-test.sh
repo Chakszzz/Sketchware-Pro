@@ -63,6 +63,10 @@ for flow in "${MAESTRO_DIR}"/*.yaml; do
   status=$?
   set -e
 
+  # Collect screenshots saved by Maestro across debug-output, flow dir, or ~/.maestro/tests
+  find "${debug_abs}" "${MAESTRO_DIR}" "${HOME}/.maestro/tests" -maxdepth 4 -type f -name "*.png" \
+    -exec cp -n {} "${ARTIFACTS_DIR}/screenshots/" \; 2>/dev/null || true
+
   if [[ ${status} -eq 0 ]]; then
     PASS_COUNT=$((PASS_COUNT + 1))
     RESULTS_MD+="| \`${flow_name}\` | **PASS** |\n"

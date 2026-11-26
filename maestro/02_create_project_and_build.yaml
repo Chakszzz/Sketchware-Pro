@@ -73,7 +73,7 @@ name: "02 - Create CodeProject, Edit File & On-Device APK Build"
     id: "action_build"
 
 - extendedWaitUntil:
-    visible: "Build Successful"
+    visible: "Build successful!"
     timeout: 180000
 
 - takeScreenshot: "02e_build_success_dialog"

@@ -33,12 +33,16 @@ name: "03 - CodeProject IDE Features (Built-in Libs, ViewBinding, R8, Resources,
     timeout: 10000
 - assertVisible:
     id: "switch_minify_enabled"
+- tapOn:
+    id: "switch_view_binding"
+- scrollUntilVisible:
+    element:
+      id: "btn_build_settings"
+    direction: DOWN
 - assertVisible:
     id: "switch_stringfog_enabled"
 - assertVisible:
     id: "btn_build_settings"
-- tapOn:
-    id: "switch_view_binding"
 - takeScreenshot: "03b_project_settings_viewbinding"
 - tapOn:
     id: "btn_save"
@@ -52,7 +56,7 @@ name: "03 - CodeProject IDE Features (Built-in Libs, ViewBinding, R8, Resources,
 - tapOn:
     id: "action_build"
 - extendedWaitUntil:
-    visible: "Build Successful"
+    visible: "Build successful!"
     timeout: 180000
 - takeScreenshot: "03c_viewbinding_build_success"
 - tapOn: "Cancel"
