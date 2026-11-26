@@ -17,7 +17,11 @@ import a.a.a.oB;
 import ide.sketchware.SketchApplication;
 
 public class BuiltInLibraries {
-    public static final File EXTRACTED_COMPILE_ASSETS_PATH = new File(SketchApplication.getContext().getFilesDir(), "libs");
+    public static final File EXTRACTED_COMPILE_ASSETS_PATH = new File(
+            SketchApplication.getContext() != null
+                    ? SketchApplication.getContext().getFilesDir()
+                    : new File(System.getProperty("java.io.tmpdir", ".")),
+            "libs");
     public static final File EXTRACTED_BUILT_IN_LIBRARIES_PATH = new File(EXTRACTED_COMPILE_ASSETS_PATH, "libs");
     public static final File EXTRACTED_BUILT_IN_LIBRARY_DEX_FILES_PATH = new File(EXTRACTED_COMPILE_ASSETS_PATH, "dexs");
 

@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.topjohnwu.superuser.Shell;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -29,8 +30,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import a.a.a.lC;
 import io.github.rosemoe.sora.event.ContentChangeEvent;
@@ -42,8 +46,10 @@ import io.github.rosemoe.sora.widget.EditorSearcher;
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion;
 import io.github.rosemoe.sora.widget.style.DiagnosticIndicatorStyle;
 import ide.sketchware.R;
+import ide.sketchware.activities.importicon.ImportIconActivity;
 import ide.sketchware.codeproject.build.CodeProjectBuilder;
 import ide.sketchware.codeproject.build.CompilerErrorParser;
+import ide.sketchware.codeproject.dependencies.CodeProjectBuiltInLibraries;
 import ide.sketchware.codeproject.dependencies.DependencyDeclaration;
 import ide.sketchware.codeproject.dependencies.DependencyResolver;
 import ide.sketchware.codeproject.model.CodeProject;
@@ -51,6 +57,8 @@ import ide.sketchware.databinding.ActivityCodeProjectBinding;
 import ide.sketchware.utility.EditorUtils;
 import ide.sketchware.utility.FileUtil;
 import ide.sketchware.utility.SketchwareUtil;
+import ide.sketchware.utility.SvgUtils;
+import mod.hilal.saif.activities.tools.ConfigActivity;
 
 public class CodeProjectActivity extends BaseAppCompatActivity {
 
@@ -81,8 +89,20 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                         if (metadata != null) {
                             project = CodeProject.fromMetadata(metadata);
                             binding.toolbar.setTitle(project.getProjectName());
+                            refreshFileExplorer();
                         }
                     }
+                }
+            });
+
+    private final ActivityResultLauncher<Intent> importIconLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Intent data = result.getData();
+                    String iconName = data.getStringExtra("iconName");
+                    String iconPath = data.getStringExtra("iconPath");
+                    String iconColorHex = data.getStringExtra("iconColorHex");
+                    importVectorIconAsync(iconName, iconPath, iconColorHex);
                 }
             });
 
@@ -766,6 +786,9 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                 }
             });
             return true;
+        } else if (id == R.id.action_builtin_libs) {
+            showBuiltInLibrariesDialog();
+            return true;
         } else if (id == R.id.action_format_file) {
             formatCurrentFile();
             return true;
@@ -775,11 +798,128 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         } else if (id == R.id.action_resources) {
             CodeProjectEditorSupport.openResourceEditor(this, project);
             return true;
+        } else if (id == R.id.action_import_icon) {
+            openImportIconActivity();
+            return true;
         } else if (id == R.id.action_editor_settings) {
             CodeProjectEditorSupport.showSettingsDialog(this, binding.editor);
             return true;
         }
         return false;
+    }
+
+    private void showBuiltInLibrariesDialog() {
+        List<CodeProjectBuiltInLibraries.Option> options = CodeProjectBuiltInLibraries.getSelectableOptions();
+        Set<String> currentSelected = new HashSet<>(project.getBuiltInLibraries());
+
+        CharSequence[] labels = new CharSequence[options.size()];
+        boolean[] checked = new boolean[options.size()];
+        for (int i = 0; i < options.size(); i++) {
+            CodeProjectBuiltInLibraries.Option opt = options.get(i);
+            labels[i] = opt.displayName;
+            checked[i] = currentSelected.contains(opt.libraryName);
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.code_project_builtin_libs)
+                .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+                .setPositiveButton(R.string.code_project_save, (dialog, which) -> {
+                    List<String> selected = new ArrayList<>();
+                    for (int i = 0; i < options.size(); i++) {
+                        if (checked[i]) {
+                            selected.add(options.get(i).libraryName);
+                        }
+                    }
+                    String scId = project.getScId();
+                    HashMap<String, Object> metadata = lC.b(scId);
+                    if (metadata != null) {
+                        metadata.put(CodeProject.KEY_BUILT_IN_LIBS, CodeProjectBuiltInLibraries.serialize(selected));
+                        lC.a(scId, metadata);
+                        project = CodeProject.fromMetadata(metadata);
+                        SketchwareUtil.toast(getString(R.string.code_project_builtin_libs_saved, selected.size()));
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void openImportIconActivity() {
+        ArrayList<String> existingNames = new ArrayList<>();
+        File drawableDir = new File(project.getResPath(), "drawable");
+        if (drawableDir.exists() && drawableDir.isDirectory()) {
+            File[] files = drawableDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.isFile()) {
+                        String name = f.getName();
+                        int dot = name.lastIndexOf('.');
+                        existingNames.add(dot > 0 ? name.substring(0, dot) : name);
+                    }
+                }
+            }
+        }
+        Intent intent = new Intent(this, ImportIconActivity.class);
+        intent.putExtra("sc_id", project.getScId());
+        intent.putStringArrayListExtra("imageNames", existingNames);
+        importIconLauncher.launch(intent);
+    }
+
+    private void importVectorIconAsync(String iconName, String iconPath, String iconColorHex) {
+        if (iconPath == null || iconPath.isEmpty()) {
+            SketchwareUtil.toast(getString(R.string.code_project_icon_import_failed));
+            return;
+        }
+        File sourceSvg = new File(iconPath);
+        if (!sourceSvg.isFile()) {
+            SketchwareUtil.toast(getString(R.string.code_project_icon_import_failed));
+            return;
+        }
+
+        String sanitized = (iconName != null ? iconName : "ic_imported")
+                .toLowerCase(Locale.US)
+                .replaceAll("[^a-z0-9_]", "_");
+        if (sanitized.isEmpty() || Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "ic_" + sanitized;
+        }
+        final String finalIconName = sanitized;
+
+        new Thread(() -> {
+            File tempDir = new File(getCacheDir(), "import_icon_tmp");
+            tempDir.mkdirs();
+            File tempSvg = new File(tempDir, finalIconName + ".svg");
+            File drawableDir = new File(project.getResPath(), "drawable");
+            drawableDir.mkdirs();
+
+            boolean success = false;
+            try {
+                // Copy SVG to a temp file named after finalIconName because SvgUtils.convert()
+                // mutates its input file in place and derives the output XML name from it.
+                copyFileOrThrow(sourceSvg, tempSvg);
+                new SvgUtils(CodeProjectActivity.this).convert(
+                        tempSvg.getAbsolutePath(),
+                        drawableDir.getAbsolutePath(),
+                        iconColorHex);
+                File outXml = new File(drawableDir, finalIconName + ".xml");
+                success = outXml.isFile() && outXml.length() > 0;
+            } catch (Exception ignored) {
+                success = false;
+            } finally {
+                if (tempSvg.exists()) {
+                    tempSvg.delete();
+                }
+            }
+
+            final boolean imported = success;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (imported) {
+                    refreshFileExplorer();
+                    SketchwareUtil.toast(getString(R.string.code_project_icon_imported, finalIconName));
+                } else {
+                    SketchwareUtil.toast(getString(R.string.code_project_icon_import_failed));
+                }
+            });
+        }).start();
     }
 
     private void buildProject() {
@@ -815,7 +955,11 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                     if (isFinishing() || isDestroyed()) return;
                     restoreActiveFileSubtitle();
                     clearInlineErrors();
-                    promptInstallApk(apk);
+                    if (ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_ROOT_AUTO_INSTALL_PROJECTS)) {
+                        installApkWithRoot(apk);
+                    } else {
+                        promptInstallApk(apk);
+                    }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -839,6 +983,38 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
      */
     private void restoreActiveFileSubtitle() {
         binding.toolbar.setSubtitle(currentFile != null ? currentFile.getName() : null);
+    }
+
+    private void installApkWithRoot(File apkFile) {
+        SketchwareUtil.toast(getString(R.string.code_project_root_installing));
+        final String packageName = project.getPackageName();
+        new Thread(() -> {
+            String escapedPath = apkFile.getAbsolutePath().replace("'", "'\\''");
+            boolean installed;
+            try {
+                Shell.Result result = Shell.cmd("pm install -r '" + escapedPath + "'").exec();
+                installed = result.isSuccess();
+            } catch (Throwable t) {
+                installed = false;
+            }
+            final boolean ok = installed;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (ok) {
+                    SketchwareUtil.toast(getString(R.string.code_project_root_installed));
+                    if (ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_ROOT_AUTO_OPEN_AFTER_INSTALLING)
+                            && packageName != null && !packageName.isEmpty()) {
+                        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(launchIntent);
+                        }
+                    }
+                } else {
+                    promptInstallApk(apkFile);
+                }
+            });
+        }).start();
     }
 
     private void promptInstallApk(File apkFile) {
@@ -1305,16 +1481,20 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
         progress.show();
 
         File resolvedDir = new File(project.getLibsPath(), "resolved");
-        // Resolve into a temp dir and swap it in only on success, so a failed or
-        // partial sync doesn't wipe the last good set of resolved jars.
+        File resolvedAarDir = new File(project.getResolvedAarPath());
+        // Resolve into temp dirs and swap them in only on success, so a failed or
+        // partial sync doesn't wipe the last good set of resolved artifacts.
         File tempDir = new File(project.getLibsPath(), ".resolved_tmp");
+        File tempAarDir = new File(project.getLibsPath(), ".resolved_aar_tmp");
         FileUtil.deleteFile(tempDir.getAbsolutePath());
+        FileUtil.deleteFile(tempAarDir.getAbsolutePath());
         tempDir.mkdirs();
+        tempAarDir.mkdirs();
 
         new Thread(() -> {
             DependencyResolver resolver = new DependencyResolver(CodeProjectActivity.this);
             try {
-                resolver.resolve(deps, tempDir, new DependencyResolver.ResolveListener() {
+                resolver.resolve(deps, tempDir, tempAarDir, new DependencyResolver.ResolveListener() {
                     @Override
                     public void onProgress(String message) {
                         runOnUiThread(() -> {
@@ -1329,6 +1509,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                         try {
                             // Swap temp -> resolved on the worker thread before touching UI
                             swapResolvedDir(tempDir, resolvedDir);
+                            swapResolvedDir(tempAarDir, resolvedAarDir);
                             runOnUiThread(() -> {
                                 isSyncing = false;
                                 setBuildMenuEnabled(true);
@@ -1352,8 +1533,9 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
 
                     @Override
                     public void onError(String error) {
-                        // Keep the previous resolved jars intact; just discard temp
+                        // Keep the previous resolved artifacts intact; just discard temp dirs
                         FileUtil.deleteFile(tempDir.getAbsolutePath());
+                        FileUtil.deleteFile(tempAarDir.getAbsolutePath());
                         runOnUiThread(() -> {
                             isSyncing = false;
                             setBuildMenuEnabled(true);
@@ -1367,6 +1549,7 @@ public class CodeProjectActivity extends BaseAppCompatActivity {
                 // Defensive: resolve() should report via the listener, but never
                 // leave the non-cancelable dialog stuck if it throws unexpectedly.
                 FileUtil.deleteFile(tempDir.getAbsolutePath());
+                FileUtil.deleteFile(tempAarDir.getAbsolutePath());
                 runOnUiThread(() -> {
                     isSyncing = false;
                     setBuildMenuEnabled(true);

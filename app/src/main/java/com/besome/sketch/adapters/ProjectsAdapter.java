@@ -38,6 +38,7 @@ import ide.sketchware.R;
 import ide.sketchware.activities.main.fragments.projects.ProjectsFragment;
 import ide.sketchware.codeproject.model.CodeProject;
 import ide.sketchware.codeproject.ui.CodeProjectActivity;
+import ide.sketchware.codeproject.ui.ProjectSettingsActivity;
 import ide.sketchware.databinding.BottomSheetProjectOptionsBinding;
 import ide.sketchware.databinding.MyprojectsItemBinding;
 
@@ -234,6 +235,13 @@ public class ProjectsAdapter extends RecyclerView.Adapter<ProjectsAdapter.Projec
     }
 
     private void toProjectSettingOrRequestPermission(HashMap<String, Object> project, int index) {
+        if (CodeProject.isCodeProject(project)) {
+            Intent intent = new Intent(activity, ProjectSettingsActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.putExtra("sc_id", yB.c(project, "sc_id"));
+            projectsFragment.openProjectSettings.launch(intent);
+            return;
+        }
         Intent intent = new Intent(activity, MyProjectSettingActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra("sc_id", yB.c(project, "sc_id"));
@@ -279,6 +287,12 @@ public class ProjectsAdapter extends RecyclerView.Adapter<ProjectsAdapter.Projec
 
         binding.title.setText(yB.c(projectMap, "my_ws_name"));
         binding.tvProjectId.setText(yB.c(projectMap, "sc_id"));
+
+        boolean isCodeProject = CodeProject.isCodeProject(projectMap);
+        if (isCodeProject) {
+            binding.projectConfig.setVisibility(View.GONE);
+            binding.projectSettings.setBackgroundResource(R.drawable.project_item_shape_alone);
+        }
 
         binding.projectSettings.setOnClickListener(v -> {
             toProjectSettingOrRequestPermission(projectMap, position);

@@ -1,15 +1,23 @@
 package ide.sketchware.codeproject.model;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import a.a.a.wq;
 import a.a.a.yB;
+import ide.sketchware.codeproject.dependencies.CodeProjectBuiltInLibraries;
 
 public class CodeProject {
 
     public static final String PROJECT_TYPE_CODE = "code";
     public static final String KEY_PROJECT_TYPE = "sc_project_type";
+    public static final String KEY_BUILT_IN_LIBS = "sc_builtin_libs";
+    public static final String KEY_VIEW_BINDING = "sc_view_binding";
+    public static final String KEY_MINIFY_ENABLED = "sc_minify_enabled";
+    public static final String KEY_STRINGFOG_ENABLED = "sc_stringfog_enabled";
 
     private String scId;
     private String projectName;
@@ -18,6 +26,10 @@ public class CodeProject {
     private String versionCode;
     private String versionName;
     private String minSdkVersion;
+    private List<String> builtInLibraries = new ArrayList<>();
+    private boolean viewBindingEnabled = false;
+    private boolean minifyEnabled = false;
+    private boolean stringFogEnabled = false;
 
     public CodeProject() {
     }
@@ -88,6 +100,38 @@ public class CodeProject {
         this.minSdkVersion = minSdkVersion;
     }
 
+    public List<String> getBuiltInLibraries() {
+        return builtInLibraries == null ? Collections.emptyList() : builtInLibraries;
+    }
+
+    public void setBuiltInLibraries(List<String> builtInLibraries) {
+        this.builtInLibraries = builtInLibraries == null ? new ArrayList<>() : new ArrayList<>(builtInLibraries);
+    }
+
+    public boolean isViewBindingEnabled() {
+        return viewBindingEnabled;
+    }
+
+    public void setViewBindingEnabled(boolean viewBindingEnabled) {
+        this.viewBindingEnabled = viewBindingEnabled;
+    }
+
+    public boolean isMinifyEnabled() {
+        return minifyEnabled;
+    }
+
+    public void setMinifyEnabled(boolean minifyEnabled) {
+        this.minifyEnabled = minifyEnabled;
+    }
+
+    public boolean isStringFogEnabled() {
+        return stringFogEnabled;
+    }
+
+    public void setStringFogEnabled(boolean stringFogEnabled) {
+        this.stringFogEnabled = stringFogEnabled;
+    }
+
     public String getProjectMyscPath() {
         return wq.d(scId);
     }
@@ -112,6 +156,10 @@ public class CodeProject {
         return getSourcePath() + File.separator + "AndroidManifest.xml";
     }
 
+    public String getProguardRulesPath() {
+        return getSourcePath() + File.separator + "proguard-rules.pro";
+    }
+
     public String getBinPath() {
         return getProjectMyscPath() + File.separator + "bin";
     }
@@ -122,6 +170,14 @@ public class CodeProject {
 
     public String getLibsPath() {
         return getProjectMyscPath() + File.separator + "app" + File.separator + "libs";
+    }
+
+    public String getJniLibsPath() {
+        return getSourcePath() + File.separator + "jniLibs";
+    }
+
+    public String getResolvedAarPath() {
+        return getLibsPath() + File.separator + "resolved_aar";
     }
 
     public static boolean isCodeProject(HashMap<String, Object> projectMap) {
@@ -143,6 +199,10 @@ public class CodeProject {
             minSdk = "21";
         }
         project.setMinSdkVersion(minSdk);
+        project.setBuiltInLibraries(CodeProjectBuiltInLibraries.deserialize(yB.c(metadata, KEY_BUILT_IN_LIBS)));
+        project.setViewBindingEnabled("true".equalsIgnoreCase(yB.c(metadata, KEY_VIEW_BINDING)));
+        project.setMinifyEnabled("true".equalsIgnoreCase(yB.c(metadata, KEY_MINIFY_ENABLED)));
+        project.setStringFogEnabled("true".equalsIgnoreCase(yB.c(metadata, KEY_STRINGFOG_ENABLED)));
         return project;
     }
 }

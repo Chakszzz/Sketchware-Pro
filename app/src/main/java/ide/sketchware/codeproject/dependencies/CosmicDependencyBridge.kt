@@ -31,6 +31,18 @@ object CosmicDependencyBridge {
         outputDir: File,
         listener: DependencyResolver.ResolveListener
     ) {
+        val defaultAarDir = File(outputDir.parentFile, "resolved_aar")
+        resolve(context, declarations, outputDir, defaultAarDir, listener)
+    }
+
+    @JvmStatic
+    fun resolve(
+        context: Context,
+        declarations: List<DependencyDeclaration>,
+        outputDir: File,
+        aarOutputDir: File,
+        listener: DependencyResolver.ResolveListener
+    ) {
         runBlocking {
             PranavResolver.mutex.withLock {
                 val previousReceiver = eventReciever
@@ -40,6 +52,7 @@ object CosmicDependencyBridge {
                     ensureRepositories()
 
                     if (!outputDir.exists()) outputDir.mkdirs()
+                    if (!aarOutputDir.exists()) aarOutputDir.mkdirs()
 
                     val resolvedJars = ArrayList<File>()
                     val errors = ArrayList<String>()
@@ -91,7 +104,7 @@ object CosmicDependencyBridge {
                     // Now download the chosen artifacts
                     for (art in chosenArtifacts.values) {
                         listener.onProgress("Downloading ${art.artifactId}-${art.version}...")
-                        val jar = downloadJar(art, outputDir, warnings)
+                        val jar = downloadArtifact(art, outputDir, aarOutputDir, warnings)
                         if (jar != null) resolvedJars.add(jar)
                     }
 
@@ -155,10 +168,16 @@ object CosmicDependencyBridge {
 
     /**
      * Downloads an artifact and returns the resolved `.jar` placed in [outputDir].
-     * For AARs, extracts `classes.jar` and records a warning if resources/assets/
-     * native libs are present (those aren't linked by the Code Project build yet).
+     * For AARs, extracts `classes.jar` to [outputDir] and extracts `res/`, `assets/`,
+     * `jni/`, and `AndroidManifest.xml` into [aarOutputDir]/<base>/ so
+     * `CodeProjectBuilder` can compile and link them into the APK/AAB.
      */
-    private fun downloadJar(art: Artifact, outputDir: File, warnings: MutableList<String>): File? {
+    private fun downloadArtifact(
+        art: Artifact,
+        outputDir: File,
+        aarOutputDir: File,
+        warnings: MutableList<String>
+    ): File? {
         if (!isCoordinateSafe(art.groupId) || !isCoordinateSafe(art.artifactId) || !isCoordinateSafe(art.version ?: "")) {
             warnings.add("Skipped unsafe artifact coordinates: ${art.groupId}:${art.artifactId}:${art.version}")
             return null
@@ -186,38 +205,30 @@ object CosmicDependencyBridge {
             val aar = File(outputDir, "$base.aar.tmp")
             try {
                 art.downloadTo(aar)
-                val jar = extractClassesJar(aar, outJar, art, warnings)
-                jar
+                val aarExtractDir = File(aarOutputDir, base)
+                extractAarArtifact(aar, outJar, aarExtractDir)
             } finally {
                 if (aar.exists()) aar.delete()
             }
         }
     }
 
-    private fun extractClassesJar(
+    internal fun extractAarArtifact(
         aar: File,
         outJar: File,
-        art: Artifact,
-        warnings: MutableList<String>
+        aarExtractDir: File
     ): File? {
-        var hasRes = false
-        var hasAssets = false
-        var hasJni = false
-        var found = false
+        var foundClassesJar = false
+        val canonicalExtractRoot = aarExtractDir.canonicalPath + File.separator
 
         ZipFile(aar).use { zip ->
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
                 val e = entries.nextElement()
-                if (!e.isDirectory) {
-                    val n = e.name
-                    when {
-                        n.startsWith("res/") -> hasRes = true
-                        n.startsWith("assets/") -> hasAssets = true
-                        n.startsWith("jni/") -> hasJni = true
-                    }
-                }
-                if (e.name == "classes.jar") {
+                if (e.isDirectory) continue
+                val n = e.name
+
+                if (n == "classes.jar") {
                     val tmp = File(outJar.parentFile, outJar.name + ".tmp")
                     zip.getInputStream(e).use { input ->
                         tmp.outputStream().use { output -> input.copyTo(output) }
@@ -227,24 +238,27 @@ object CosmicDependencyBridge {
                         tmp.copyTo(outJar, overwrite = true)
                         tmp.delete()
                     }
-                    found = true
+                    foundClassesJar = true
+                } else if (n == "AndroidManifest.xml"
+                    || n == "proguard.txt"
+                    || n.startsWith("res/")
+                    || n.startsWith("assets/")
+                    || n.startsWith("jni/")
+                ) {
+                    val destFile = File(aarExtractDir, n)
+                    val canonicalDest = destFile.canonicalPath
+                    if (!canonicalDest.startsWith(canonicalExtractRoot)) {
+                        continue // zip-slip guard
+                    }
+                    destFile.parentFile?.mkdirs()
+                    zip.getInputStream(e).use { input ->
+                        destFile.outputStream().use { output -> input.copyTo(output) }
+                    }
                 }
             }
         }
 
-        if (hasRes || hasAssets || hasJni) {
-            val dropped = buildString {
-                if (hasRes) append("resources ")
-                if (hasAssets) append("assets ")
-                if (hasJni) append("native-libs ")
-            }.trim()
-            warnings.add(
-                "${art.groupId}:${art.artifactId}:${art.version} is an AAR; its $dropped " +
-                    "were not included (only classes). It may not work correctly at runtime."
-            )
-        }
-
-        return if (found) outJar else null
+        return if (foundClassesJar) outJar else null
     }
 
     internal fun compareVersions(v1: String, v2: String): Int {

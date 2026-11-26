@@ -50,6 +50,10 @@ public class DependencyResolver {
         CosmicDependencyBridge.resolve(context, declarations, outputDir, listener);
     }
 
+    public void resolve(List<DependencyDeclaration> declarations, File outputDir, File aarOutputDir, ResolveListener listener) {
+        CosmicDependencyBridge.resolve(context, declarations, outputDir, aarOutputDir, listener);
+    }
+
     /**
      * Parses a dependencies.txt file and returns a list of DependencyDeclarations.
      * Supports formats:

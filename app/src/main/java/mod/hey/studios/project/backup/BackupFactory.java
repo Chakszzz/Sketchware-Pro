@@ -47,12 +47,14 @@ import mod.hey.studios.editor.manage.block.v2.BlockLoader;
 import mod.hey.studios.project.custom_blocks.CustomBlocksManager;
 import mod.hey.studios.util.Helper;
 import mod.hilal.saif.activities.tools.ConfigActivity;
+import ide.sketchware.codeproject.model.CodeProject;
 import ide.sketchware.utility.FileUtil;
 import ide.sketchware.utility.SketchwareUtil;
 
 public class BackupFactory {
     public static final String EXTENSION = "swb";
     public static final String DEF_PATH = ".sketchware/backups/";
+    public static final String CODE_PROJECT_ENTRY_NAME = "codeproject";
 
     private static final String[] resSubfolders = {
             "fonts", "icons", "images", "sounds"
@@ -140,11 +142,16 @@ public class BackupFactory {
         int DEFAULT_BUFFER = 2048;
         try (ZipFile zip = new ZipFile(zipFile)) {
             destinationDir.mkdirs();
+            String destCanonicalDir = destinationDir.getCanonicalPath() + File.separator;
             Enumeration<? extends ZipEntry> zipFileEntries = zip.entries();
             while (zipFileEntries.hasMoreElements()) {
                 ZipEntry entry = zipFileEntries.nextElement();
                 String entryName = entry.getName();
                 File destFile = new File(destinationDir, entryName);
+                String destCanonicalPath = destFile.getCanonicalPath();
+                if (!destCanonicalPath.startsWith(destCanonicalDir) && !destCanonicalPath.equals(destinationDir.getCanonicalPath())) {
+                    throw new IOException("Zip entry outside target directory: " + entryName);
+                }
                 File destinationParent = destFile.getParentFile();
                 if (destinationParent != null && !destinationParent.exists()) {
                     destinationParent.mkdirs();
@@ -168,6 +175,65 @@ public class BackupFactory {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Copies a CodeProject's editable sources and manually placed JARs into a backup staging folder,
+     * excluding transient build outputs (bin/, gen/) and auto-resolved dependency caches.
+     */
+    public static void copyCodeProjectSourcesForBackup(File projectMyscDir, File destDir) {
+        if (projectMyscDir == null || !projectMyscDir.exists() || !projectMyscDir.isDirectory()) {
+            return;
+        }
+        File appDir = new File(projectMyscDir, "app");
+        File srcDir = new File(appDir, "src");
+        if (srcDir.exists() && srcDir.isDirectory()) {
+            copy(srcDir, new File(destDir, "app" + File.separator + "src"));
+        }
+
+        File libsDir = new File(appDir, "libs");
+        if (libsDir.exists() && libsDir.isDirectory()) {
+            File destLibsDir = new File(destDir, "app" + File.separator + "libs");
+            File[] children = libsDir.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    String name = child.getName();
+                    if (name.equals("resolved")
+                            || name.equals("resolved_aar")
+                            || name.equals(".resolved_tmp")
+                            || name.equals("resolved_backup")
+                            || name.equals("resolved_aar_backup")) {
+                        continue;
+                    }
+                    if (!destLibsDir.exists()) {
+                        destLibsDir.mkdirs();
+                    }
+                    copy(child, new File(destLibsDir, name));
+                }
+            }
+        }
+
+        // Preserve legacy root-level dependencies.txt if present
+        File legacyDeps = new File(projectMyscDir, "dependencies.txt");
+        if (legacyDeps.exists() && legacyDeps.isFile()) {
+            if (!destDir.exists()) {
+                destDir.mkdirs();
+            }
+            copy(legacyDeps, new File(destDir, "dependencies.txt"));
+        }
+    }
+
+    /**
+     * Restores CodeProject sources from a backup staging directory into the target mysc/<sc_id> directory.
+     */
+    public static void restoreCodeProjectSources(File backupCodeProjectDir, File targetMyscDir) {
+        if (backupCodeProjectDir == null || !backupCodeProjectDir.exists() || !backupCodeProjectDir.isDirectory()) {
+            return;
+        }
+        if (!targetMyscDir.exists()) {
+            targetMyscDir.mkdirs();
+        }
+        copy(backupCodeProjectDir, targetMyscDir);
     }
 
     public static void zipFolder(File srcFolder, File destZipFile) throws Exception {
@@ -358,8 +424,14 @@ public class BackupFactory {
         File projectF = new File(outFolder, "project");
         copy(getProjectPath(), projectF);
 
+        HashMap<String, Object> metadata = lC.b(sc_id);
+        boolean isCodeProject = CodeProject.isCodeProject(metadata);
+        if (isCodeProject) {
+            copyCodeProjectSourcesForBackup(getCodeProjectDir(), new File(outFolder, CODE_PROJECT_ENTRY_NAME));
+        }
+
         // Find local libs used and include them in the backup
-        if (backupLocalLibs) {
+        if (backupLocalLibs && !isCodeProject) {
             File localLibs = getLocalLibsPath();
 
             if (localLibs.exists()) {
@@ -383,7 +455,7 @@ public class BackupFactory {
         }
 
         // Find custom blocks used and include them in the backup
-        if (backupCustomBlocks) {
+        if (backupCustomBlocks && !isCodeProject) {
             CustomBlocksManager cbm = new CustomBlocksManager(context, sc_id);
 
             Set<ExtraBlockInfo> blocks = new HashSet<>();
@@ -518,6 +590,12 @@ public class BackupFactory {
         // Copy project
         copy(project, getProjectPath());
 
+        // Restore CodeProject sources if present in backup
+        File codeProjectDir = new File(outFolder, CODE_PROJECT_ENTRY_NAME);
+        if (codeProjectDir.exists() && codeProjectDir.isDirectory()) {
+            restoreCodeProjectSources(codeProjectDir, getCodeProjectDir());
+        }
+
         // Copy local libs if they do not exist
         if (backupLocalLibs) {
             File local_libs = new File(outFolder, "local_libs");
@@ -575,6 +653,11 @@ public class BackupFactory {
     private File getProjectPath() {
         return new File(Environment.getExternalStorageDirectory(),
                 ".sketchware/mysc/list/" + sc_id + "/project");
+    }
+
+    private File getCodeProjectDir() {
+        return new File(Environment.getExternalStorageDirectory(),
+                ".sketchware/mysc/" + sc_id);
     }
 
     private File getLocalLibsPath() {

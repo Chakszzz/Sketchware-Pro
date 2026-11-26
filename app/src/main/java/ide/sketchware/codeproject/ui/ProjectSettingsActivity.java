@@ -1,17 +1,27 @@
 package ide.sketchware.codeproject.ui;
 
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.view.View;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 
 import a.a.a.lC;
+import a.a.a.wq;
 import a.a.a.yB;
 import ide.sketchware.R;
+import ide.sketchware.activities.iconcreator.IconCreatorActivity;
 import ide.sketchware.codeproject.model.CodeProject;
 import ide.sketchware.databinding.ActivityProjectSettingsBinding;
 import ide.sketchware.utility.FileUtil;
@@ -22,6 +32,21 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
     private ActivityProjectSettingsBinding binding;
     private String scId;
     private HashMap<String, Object> metadata;
+    private Bitmap pendingIcon;
+    private boolean resetIconRequested = false;
+
+    private final ActivityResultLauncher<Intent> iconCreatorLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Bitmap bitmap = result.getData().getParcelableExtra("appIco");
+                    if (bitmap != null) {
+                        pendingIcon = bitmap;
+                        resetIconRequested = false;
+                        binding.imgAppIcon.setImageBitmap(bitmap);
+                        binding.btnResetIcon.setVisibility(View.VISIBLE);
+                    }
+                }
+            });
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -44,6 +69,7 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
 
         setupToolbar();
         populateFields();
+        setupIconControls();
         setupSaveButton();
     }
 
@@ -63,6 +89,55 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
             minSdk = "21";
         }
         binding.inputMinSdk.setText(minSdk);
+
+        binding.switchViewBinding.setChecked(
+                "true".equalsIgnoreCase(yB.c(metadata, CodeProject.KEY_VIEW_BINDING)));
+        binding.switchMinifyEnabled.setChecked(
+                "true".equalsIgnoreCase(yB.c(metadata, CodeProject.KEY_MINIFY_ENABLED)));
+        binding.switchStringfogEnabled.setChecked(
+                "true".equalsIgnoreCase(yB.c(metadata, CodeProject.KEY_STRINGFOG_ENABLED)));
+        binding.btnBuildSettings.setOnClickListener(v ->
+                ide.sketchware.dialogs.BuildSettingsBottomSheet.newInstance(scId)
+                        .show(getSupportFragmentManager(), ide.sketchware.dialogs.BuildSettingsBottomSheet.TAG));
+
+        boolean hasCustomIcon = yB.a(metadata, "custom_icon");
+        File customIconFile = getCustomIconFile();
+        if (hasCustomIcon && customIconFile.exists()) {
+            Bitmap existing = BitmapFactory.decodeFile(customIconFile.getAbsolutePath());
+            if (existing != null) {
+                binding.imgAppIcon.setImageBitmap(existing);
+            } else {
+                binding.imgAppIcon.setImageResource(R.drawable.default_icon);
+            }
+            binding.btnResetIcon.setVisibility(View.VISIBLE);
+        } else {
+            binding.imgAppIcon.setImageResource(R.drawable.default_icon);
+            binding.btnResetIcon.setVisibility(View.GONE);
+        }
+    }
+
+    private void setupIconControls() {
+        View.OnClickListener openIconCreator = v -> {
+            File iconDir = getCustomIconFile().getParentFile();
+            if (iconDir != null && !iconDir.exists()) {
+                iconDir.mkdirs();
+            }
+            Intent intent = new Intent(this, IconCreatorActivity.class);
+            intent.putExtra("sc_id", scId);
+            iconCreatorLauncher.launch(intent);
+        };
+        binding.imgAppIcon.setOnClickListener(openIconCreator);
+        binding.btnChangeIcon.setOnClickListener(openIconCreator);
+        binding.btnResetIcon.setOnClickListener(v -> {
+            pendingIcon = null;
+            resetIconRequested = true;
+            binding.imgAppIcon.setImageResource(R.drawable.default_icon);
+            binding.btnResetIcon.setVisibility(View.GONE);
+        });
+    }
+
+    private File getCustomIconFile() {
+        return new File(wq.e() + File.separator + scId, "icon.png");
     }
 
     private void setupSaveButton() {
@@ -108,12 +183,24 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
             return;
         }
 
+        boolean viewBindingEnabled = binding.switchViewBinding.isChecked();
+        boolean minifyEnabled = binding.switchMinifyEnabled.isChecked();
+        boolean stringFogEnabled = binding.switchStringfogEnabled.isChecked();
+
         // Update metadata
         metadata.put("my_app_name", appName);
         metadata.put("my_sc_pkg_name", packageName);
         metadata.put("sc_ver_code", String.valueOf(versionCodeInt));
         metadata.put("sc_ver_name", versionName);
         metadata.put("sc_min_sdk", String.valueOf(minSdkInt));
+        metadata.put(CodeProject.KEY_VIEW_BINDING, String.valueOf(viewBindingEnabled));
+        metadata.put(CodeProject.KEY_MINIFY_ENABLED, String.valueOf(minifyEnabled));
+        metadata.put(CodeProject.KEY_STRINGFOG_ENABLED, String.valueOf(stringFogEnabled));
+
+        applyIconChanges();
+        if (minifyEnabled) {
+            ensureProguardRulesFile();
+        }
 
         // Save via lC
         lC.a(scId, metadata);
@@ -127,8 +214,87 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
         updateManifestVersions(versionCodeInt, versionName, minSdkInt);
 
         SketchwareUtil.toast(getString(R.string.code_project_settings_saved));
-        setResult(RESULT_OK);
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra("sc_id", scId);
+        setResult(RESULT_OK, resultIntent);
         finish();
+    }
+
+    private void ensureProguardRulesFile() {
+        CodeProject project = CodeProject.fromMetadata(metadata);
+        File proguardFile = new File(project.getProguardRulesPath());
+        if (!proguardFile.exists()) {
+            FileUtil.writeFile(proguardFile.getAbsolutePath(),
+                    "# Add project-specific R8 / ProGuard keep rules here.\n"
+                            + "# Example:\n"
+                            + "# -keep class " + project.getPackageName() + ".model.** { *; }\n"
+                            + "-ignorewarnings\n"
+                            + "-dontwarn\n");
+        }
+    }
+
+    private void applyIconChanges() {
+        CodeProject project = CodeProject.fromMetadata(metadata);
+        File customIconFile = getCustomIconFile();
+        File resIconFile = new File(project.getResPath() + File.separator + "mipmap", "ic_launcher.png");
+
+        if (pendingIcon != null) {
+            saveBitmapPng(pendingIcon, customIconFile);
+            saveBitmapPng(pendingIcon, resIconFile);
+            metadata.put("custom_icon", true);
+            updateManifestApplicationIcon(project, true);
+        } else if (resetIconRequested) {
+            metadata.put("custom_icon", false);
+            if (customIconFile.exists()) {
+                customIconFile.delete();
+            }
+            if (resIconFile.exists()) {
+                resIconFile.delete();
+            }
+            updateManifestApplicationIcon(project, false);
+        }
+    }
+
+    private void saveBitmapPng(Bitmap bitmap, File target) {
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (FileOutputStream fos = new FileOutputStream(target)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            fos.flush();
+        } catch (IOException ignored) {
+        }
+    }
+
+    private void updateManifestApplicationIcon(CodeProject project, boolean enableIcon) {
+        String manifestPath = project.getManifestPath();
+        File manifestFile = new File(manifestPath);
+        if (!manifestFile.exists()) return;
+        String content = FileUtil.readFile(manifestPath);
+        if (content == null || content.isEmpty()) return;
+
+        java.util.regex.Matcher appMatcher = java.util.regex.Pattern.compile("<application\\b([^>]*)>").matcher(content);
+        if (!appMatcher.find()) return;
+
+        String attrs = appMatcher.group(1);
+        String updatedAttrs;
+        if (enableIcon) {
+            if (attrs.contains("android:icon=")) {
+                updatedAttrs = attrs.replaceFirst("android:icon=\"[^\"]*\"", "android:icon=\"@mipmap/ic_launcher\"");
+            } else {
+                updatedAttrs = attrs + "\n        android:icon=\"@mipmap/ic_launcher\"";
+            }
+        } else {
+            updatedAttrs = attrs.replaceFirst("\\s*android:icon=\"@mipmap/ic_launcher\"", "");
+        }
+
+        if (!updatedAttrs.equals(attrs)) {
+            String updatedContent = content.substring(0, appMatcher.start())
+                    + "<application" + updatedAttrs + ">"
+                    + content.substring(appMatcher.end());
+            FileUtil.writeFile(manifestPath, updatedContent);
+        }
     }
 
     private void updateManifestPackage(String packageName) {

@@ -12,13 +12,11 @@
 Welcome to Sketchware Pro! Here you'll find the source code of many classes in Sketchware Pro and, most importantly, the place to contribute to Sketchware Pro.
 
 > [!NOTE]
-> This fork is being refactored from the original drag-and-drop block builder
-> into a tool that also offers a full-code **Code Project** IDE mode, and the
-> package/application id has been renamed from `pro.sketchware` to
-> **`ide.sketchware`**. If you are working on this codebase, read
-> **[DEVELOPMENT.md](DEVELOPMENT.md)** first — it documents the architecture,
-> the legacy block-editor coupling (and why it can't simply be deleted), and
-> the safe dead-code-removal process.
+> This fork has migrated from the legacy drag-and-drop block builder into a
+> full-code **Code Project IDE** (`ide.sketchware`), with the legacy block
+> editor (`DesignActivity`, `LogicEditorActivity`, `ViewEditorFragment`)
+> retired and removed. Read **[DEVELOPMENT.md](DEVELOPMENT.md)** for the
+> updated architecture, Code Project build pipeline, and contributor guidelines.
 
 ## Building the App
 To build the app, you must use Gradle with a **JDK 17**. It's highly

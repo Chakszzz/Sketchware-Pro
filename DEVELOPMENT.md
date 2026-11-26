@@ -1,52 +1,84 @@
 # Development Guide
 
-This document explains the architecture of this fork, how to build it, and the
-constraints future work must respect. It is aimed at contributors who need to
-understand *why* the codebase is shaped the way it is — especially the ongoing
-migration away from the legacy block editor toward a full-code IDE.
+This document explains the architecture of this fork (`ide.sketchware`), how to
+build and test it, and the conventions contributors should follow.
 
-> If you only want to build the app, jump to [Building](#building).
+> If you only want to build the app, jump to [Building](#2-building).
 
 ---
 
 ## 1. What this fork is
 
-This is a fork of Sketchware Pro that is being refactored from a purely
-drag-and-drop **block-based** app builder into a tool that *also* offers a
-**Code Project** mode: a full-code IDE (file explorer, editable source with
-sora-editor, direct compilation of raw `.java`/`.xml` files).
+This is a fork of Sketchware Pro migrated from the legacy drag-and-drop
+block-based app builder into a full-code **Code Project IDE**:
 
-The application id and namespace were renamed from the upstream
-`pro.sketchware` to **`ide.sketchware`**. New first-party code lives under the
-`ide.sketchware.*` package tree.
+- Full file explorer, multi-tab Sora Editor (Java, Kotlin, XML), inline
+  compiler diagnostics, search & replace (single-file and project-wide),
+  formatting, integrated Layout Preview, Resource Editor, and Logcat panel.
+- Self-contained on-device Android build pipeline (`CodeProjectBuilder`):
+  AAPT2 (with built-in offline library resource caching + AAR `res/`, `assets/`,
+  `--extra-packages`, and `--proguard` rules), optional `ViewBindingBuilder`
+  code generation, `K2JVMCompiler` (Kotlin), ECJ (Java `1.7`–`11` + warnings
+  toggle, custom `android.jar`, and extra classpath via Sketchware Pro's
+  `BuildSettings` / `BuildSettingsBottomSheet`), optional **StringFog** string
+  obfuscation (`StringFogClassInjector`), D8 or R8 shrinking/obfuscation
+  (`proguard-rules.pro` + library consumer rules), native library (`jniLibs/` +
+  AAR `jni/`) packaging, pure-Java `ZipAlign`, APK signing (testkey and custom
+  release keystore), Android App Bundle (`.aab`) export, and optional root
+  auto-install / auto-launch (`libsu`).
+- Curated offline **Built-in Libraries** picker (`CodeProjectBuiltInLibraries`
+  backed by `BuiltInLibraries`) with cycle-safe transitive resolution, plus
+  Maven dependency resolution via `CosmicDependencyBridge`.
+- Project settings (ViewBinding & R8/ProGuard toggles, custom app icon sync to
+  `res/mipmap/ic_launcher.png` and `AndroidManifest.xml`), **Import Material
+  Icon** (`ImportIconActivity` + `SvgUtils` to `res/drawable/*.xml`), safe
+  source ZIP export, and full `.swb` backup/restore preserving `app/src` and
+  manually placed `app/libs`.
 
-| Setting       | Value          |
-| ------------- | -------------- |
+The application id and namespace were renamed from `pro.sketchware` to
+**`ide.sketchware`**. New first-party code lives under `ide.sketchware.*`.
+
+| Setting       | Value            |
+| ------------- | ---------------- |
 | applicationId | `ide.sketchware` |
 | namespace     | `ide.sketchware` |
-| compileSdk    | 36             |
-| targetSdk     | 28             |
-| minSdk        | 26             |
-| JDK           | 17             |
+| compileSdk    | 36               |
+| targetSdk     | 28               |
+| minSdk        | 26               |
+| JDK           | 17+              |
 
 ---
 
-## 2. Building
+## 2. Building & Testing
 
-The project builds with Gradle and the Android Gradle Plugin. A JDK 17 is
-required (mise is configured to provide it via `mise.toml` → `java = "17"`).
+The project builds with Gradle 8.13 and Android Gradle Plugin 8.12 (`mise.toml`
+pins `java = "17"`, and JDK 17–21 works with the wrapper).
 
 ```bash
-# Use the project's pinned JDK 17 (path may vary on your machine)
-export JAVA_HOME="/root/.local/share/mise/installs/java/17.0.2"
-export PATH="$JAVA_HOME/bin:$PATH"
-# or: mise use java@17
-
 ./gradlew assembleDebug
+./gradlew testDebugUnitTest
 ```
 
-The **iron rule** for any refactor: `./gradlew assembleDebug` must report
-`BUILD SUCCESSFUL` after every commit. Never leave the build broken.
+The **iron rule** for any change: `./gradlew assembleDebug testDebugUnitTest`
+must report `BUILD SUCCESSFUL` after every commit.
+
+### Android E2E Testing (GitHub Actions / Local Emulator / redroid)
+
+Automated UI end-to-end flows live in `maestro/` and are executed on a real
+Android Emulator (API 31, KVM) via `.github/workflows/android-e2e.yml` on
+pull requests or manual `workflow_dispatch` runs (uploading screenshots,
+JUnit XML reports, and filtered Logcat under `artifacts/android-e2e/`).
+
+To run locally against a Binder-enabled Linux host (`redroid`) or any connected
+Android device/emulator:
+
+```bash
+./scripts/android-start.sh      # Optional: start redroid on Binder-enabled Linux host
+./scripts/android-status.sh     # Verify ADB device & boot completion
+./scripts/android-install.sh    # Install debug APK & grant storage permissions
+./scripts/android-test.sh       # Run all maestro/*.yaml flows & collect artifacts
+./scripts/android-stop.sh       # Optional: stop redroid container
+```
 
 ---
 
@@ -55,196 +87,64 @@ The **iron rule** for any refactor: `./gradlew assembleDebug` must report
 ### First-party / actively maintained — `ide.sketchware.*`
 | Package | Role |
 | ------- | ---- |
-| `ide.sketchware.codeproject.*` | The Code Project IDE (build, editor, model, template, UI). New feature work goes here. |
-| `ide.sketchware.activities.resourceseditor.*` | Standalone resource editor (strings, colors, etc.). Reused independently of the block editor. |
-| `ide.sketchware.activities.*` | Main screens, settings, about, icon creator, etc. |
-| `ide.sketchware.util`, `ide.sketchware.utility`, `ide.sketchware.xml`, `ide.sketchware.lib` | Shared helpers (`FileUtil`, `XmlBuilder`, …). |
+| `ide.sketchware.codeproject.*` | Core Code Project IDE (model, template, builder, compiler error parser, Maven/AAR dependency bridge, editor UI, project settings). |
+| `ide.sketchware.activities.resourceseditor.*` | Standalone resource editor (strings, colors, styles, themes, arrays), wired to CodeProject's `res/` root. |
+| `ide.sketchware.activities.preview.*` | Layout XML preview (`LayoutPreviewActivity`), backed by `ViewPane` with explicit resource root support. |
+| `ide.sketchware.activities.*` | Main project list (`MainActivity`, `ProjectsFragment`), settings, about, icon creator, import icon. |
+| `ide.sketchware.util`, `ide.sketchware.utility`, `ide.sketchware.xml`, `ide.sketchware.lib` | Shared helpers (`FileUtil`, `BinaryExecutor`, `XmlBuilder`, `EditorUtils`, …). |
 
-### Code generation / build pipeline — `a.a.a.*` (decompiled core, keep)
-| Class | Role |
-| ----- | ---- |
-| `a.a.a.ProjectBuilder` | Compiles an entire project. |
-| `a.a.a.Ix` | Generates `AndroidManifest.xml`. |
-| `a.a.a.Jx` | Generates activity source code. |
-| `a.a.a.Lx` | Generates component source (listeners, etc.). |
-| `a.a.a.Ox` | Generates layout XML. |
-| `a.a.a.qq` | Registry of built-in library dependencies. |
-| `a.a.a.yq` | Organizes project file paths. |
-
-### Contributor mods — `mod.*` (keep)
-`mod.jbk.build.*`, `mod.jbk.code.*`, `mod.hey.studios.compiler.*`,
-`mod.hey.studios.code.*`, `mod.bobur.*` and friends provide the compiler/build
-infra and are referenced by the resource editor and build pipeline.
+### Storage & shared build infrastructure — `a.a.a.*` & `mod.*`
+- `a.a.a.*`: Core project metadata/path storage (`lC`, `wq`, `yB`, `oB`, `DB`, `yq`) and legacy code-generation support still referenced by `app/libs/*.jar` or shared helpers.
+- `mod.jbk.build.*`, `mod.hey.studios.compiler.*`, `mod.hey.studios.code.*`, `mod.hey.studios.project.backup.*`, `mod.bobur.*`, `mod.khaled.logcat.*`, `mod.alucard.tn.apksigner.*`: Shared compiler assets (`BuiltInLibraries`), Kotlin diagnostics, Sora editor preferences/themes (`SrcCodeEditor`), `.swb` backup/restore (`BackupFactory`), vector drawable rendering (`VectorDrawableLoader`/`VectorDrawableParser`), logcat reader, and APK signing.
+- `mod.hilal.saif.activities.tools.{AppSettings, ConfigActivity}`: General app tools and preferences (block-editor manager items and block preferences have been removed).
 
 > **Maven dependency resolution already exists.** `mod.pranav.dependency.resolver.DependencyResolver`
-> (Kotlin) wraps the bundled `com.github.Cosmic-Ide:DependencyResolver` library
-> (`org.cosmic.ide.dependency.resolver`, declared as `libs.dependencyresolver`).
-> It does POM parsing, repository fallback, transitive resolution, AAR handling,
-> and D8 dexing, and is already wired into the block editor via
-> `dev.aldi.sayuti.editor.manage.LibraryDownloaderDialogFragment`. **Reuse this —
-> do not hand-roll a Maven resolver.** The Code Project IDE consumes it through
-> `ide.sketchware.codeproject.dependencies.CosmicDependencyBridge`.
-
-### Legacy block editor — being retired (see §4)
-- `com.besome.sketch.editor.*` (≈133 files) — the drag-and-drop logic/view editor.
-- `dev.aldi.sayuti.*` (≈39 files) — block palette, custom view items, local library management.
-- `mod.hilal.saif.*` (≈18 files) — blocks manager, events/components handlers, config/settings.
-
-> Note: `mod.hilal.saif.activities.tools.ConfigActivity` and `AppSettings`,
-> and `dev.aldi.sayuti.editor.manage.*` (local library management) live in the
-> "block editor" trees but are **kept** — they are general settings / build
-> infrastructure, not block-only code.
+> wraps `com.github.Cosmic-Ide:DependencyResolver` (`org.cosmic.ide.dependency.resolver`).
+> The Code Project IDE consumes it through `ide.sketchware.codeproject.dependencies.CosmicDependencyBridge`,
+> which places resolved JARs in `app/libs/resolved/` and extracts AAR `res/`,
+> `assets/`, `jni/`, and `AndroidManifest.xml` into `app/libs/resolved_aar/`.
+> **Reuse this — do not hand-roll a Maven resolver.**
 
 ### Prebuilt JARs — `app/libs/*.jar`
 `com.besome.sketch-classes.jar`, `base_libs.jar`, `a.a.a-*-classes.jar`, etc.
-contain compiled classes that the source tree extends/overrides. References
-from these JARs are **invisible to source-level grep**, so treat them as a
-hidden dependency surface when deleting classes.
+contain compiled classes that the source tree extends or overrides. References
+from these JARs are **invisible to source-level grep**, so always scan
+`app/libs/*.jar` before deleting any legacy class.
 
 ---
 
-## 4. Why the block editor cannot simply be deleted
+## 4. Migration & Cleanup History
 
-The block editor is **not** an isolated module. It is anchored by
-`com.besome.sketch.design.DesignActivity`, which must be **kept** because
-non-block, actively-used code depends on it:
-
-```
-DesignActivity  (kept — cannot be deleted)
-  ▲ depended on by (inbound — these import DesignActivity.sc_id):
-  │   ├── ide.sketchware.activities.resourceseditor.components.adapters.StringsAdapter
-  │   ├── ide.sketchware.activities.resourceseditor.components.utils.ColorsEditorManager
-  │   ├── mod.jbk.build.compiler.resource.ResourceCompiler
-  │   └── mod.bobur.VectorDrawableParser
-  ▼ depends on (outbound):
-      └── a.a.a.ViewEditorFragment  (and the editor view/logic/property trees)
-```
-
-Both directions pin `DesignActivity`: kept code depends on it (inbound), and it
-reaches into the editor graph (outbound). Either alone is enough to block deletion.
-
-Because `DesignActivity` reaches into the editor view/logic/property trees, and
-because many block-editor activities are still declared in
-`AndroidManifest.xml`, almost the entire `com.besome.sketch.editor.*` graph is
-*live* and cannot be removed without cascading compile failures and a rewrite
-of the resource editor and build pipeline. That rewrite is **out of scope** for
-the incremental cleanup phases.
-
-**Consequence:** block-editor cleanup proceeds by removing only *genuinely
-orphaned* leaf classes, not whole packages.
+| Phase | Outcome |
+| ----- | ------- |
+| Package & IDE foundation | Renamed `pro.sketchware` → `ide.sketchware`, built `ide.sketchware.codeproject.*`, wired `CosmicDependencyBridge` over `Cosmic-Ide`. |
+| Drag-and-drop retirement | Removed `ViewEditorFragment`, `ViewEditor`, `DesignDrawer`, `WidgetsCreatorManager`, and transitioned new project creation to `CreateCodeProjectActivity`. |
+| Full migration completion | Fixed CodeProject data-loss paths in `ExportProjectActivity` (APK/AAB/source ZIP) and `BackupFactory` (`.swb` backup/restore of `app/src` + `app/libs`); routed CodeProject settings in `ProjectsAdapter` to `ProjectSettingsActivity` with custom app icon support; removed all `DesignActivity.sc_id` coupling and deleted `DesignActivity` & `LogicEditorActivity`; cleaned legacy block managers from `AppSettings`/`ConfigActivity` and removed the defunct Store tab; peeled **188 dead legacy Java classes**, **41 dead `<activity>` declarations** from `AndroidManifest.xml`, and orphaned XML layouts/menus; upgraded `CodeProjectBuilder` to Java 8 (`-1.8`) with full AAR `res/`/`assets/`/`jni/`/`--extra-packages` linking and AAB packaging; expanded unit test suite. |
 
 ---
 
 ## 5. Safe dead-code removal methodology ("orphan peeling")
 
-Future cleanup phases should follow this conservative, verify-driven process.
+When removing further legacy classes in the future, a class is safe to delete only
+if it is unreachable from all live roots:
 
-A class is **safe to remove** only if it has zero references from *everything*:
+1. No declaration in `AndroidManifest.xml`.
+2. No keep rule in `app/proguard-rules.pro`.
+3. No class/binary reference inside `app/libs/*.jar`.
+4. No reference from any live `.java`, `.kt`, or `.xml` file (including ViewBinding classes and custom view tags).
 
-1. No whole-word reference in any other `.java` file
-   (a fully-qualified `a.b.C` string also matches because `.` is a word
-   boundary — this catches reflection-by-string too).
-2. No reference in any `.kt` file.
-3. No custom-view tag or `tools:`/binding reference in any `.xml`
-   (layouts **and** `AndroidManifest.xml`).
-4. No `<activity>`/`<service>` declaration in the manifest.
-5. No keep rule in `app/proguard-rules.pro`.
-6. No occurrence inside `app/libs/*.jar` (scan with `unzip -p … | grep`).
-
-Iterate to a fixpoint ("peeling"): after deleting a batch, recompute — a class
-that was only referenced by now-deleted files may itself become orphaned.
-
-```bash
-# Example: list block-editor leaves with no whole-word ref anywhere in Java
-JAVA_ROOT=app/src/main/java
-find "$JAVA_ROOT/com/besome/sketch/editor" "$JAVA_ROOT/dev/aldi/sayuti" \
-     "$JAVA_ROOT/mod/hilal/saif" -name '*.java' | while read f; do
-  cls=$(basename "$f" .java)
-  refs=$(grep -rlw "$cls" "$JAVA_ROOT" --include=*.java | grep -vF "$f" | wc -l)
-  xml=$(grep -rlw "$cls" app/src/main --include=*.xml | wc -l)
-  [ "$refs" -eq 0 ] && [ "$xml" -eq 0 ] && echo "ORPHAN: $f"
-done
-```
-
-**Batch discipline:** delete a small batch → `./gradlew assembleDebug`.
-- Build passes → commit the batch.
-- Build fails with a 1–3 file fix → fix it.
-- Build fails and the fix cascades into 10+ files → `git checkout .` and skip it.
-
-When you remove an Activity/Service class, also remove its declaration from
-`AndroidManifest.xml`. When you keep a class, leave its declaration intact.
+Always verify `./gradlew assembleDebug testDebugUnitTest` after each batch.
 
 ---
 
-## 6. Cleanup progress
-
-| Phase | Outcome |
-| ----- | ------- |
-| Block-editor orphan removal (this phase) | Removed 3 fully-orphaned leaf classes (`PropertySwitchItem`, `dev.aldi.sayuti.editor.injection.ManifestInjection`, `DialogButtonGradientDrawable`) plus the now-orphaned `res/layout/property_switch_item.xml`. Peeling converged after one round; no further leaves were safely removable because the rest of the graph is pinned by `DesignActivity` and the manifest. |
-
-### Future work
-- The block editor can only be fully removed once the resource editor and
-  build pipeline stop depending on `DesignActivity`/`ViewEditorFragment`.
-  Decoupling those is the prerequisite for any large `com.besome.sketch.editor`
-  deletion.
-- Continue building out `ide.sketchware.codeproject.*` as the primary authoring
-  experience.
-
----
-
-## 7. Contributing conventions
+## 6. Contributing conventions
 
 - Prefer **Java** over Kotlin for new code unless Kotlin is clearly warranted
   (the build supports both).
 - Put new first-party features under `ide.sketchware.*`, respecting existing
   directory/file naming.
-- **Before building a new subsystem, check whether it already exists** (see §8) —
-  search `mod.*`, `app/libs/*.jar`, and `gradle/libs.versions.toml` first.
+- **Reuse existing infrastructure before building new** — search `mod.*`,
+  `app/libs/*.jar`, and `gradle/libs.versions.toml` first.
 - Commit message prefixes: `feat:`, `fix:`, `style:`, `refactor:`, `test:`,
   `docs:`, `chore:`.
-- Always run `./gradlew assembleDebug` before committing.
-
-
----
-
-## 8. Reuse existing infrastructure before building new
-
-This is a large, decade-old codebase (≈200k LOC across `com.besome.*`, `a.a.a.*`,
-`dev.*`, `mod.*`, plus prebuilt JARs in `app/libs/`). Before implementing any
-non-trivial capability, **search the tree first** — chances are it already
-exists, is more robust than a fresh implementation, and is wired into the build.
-
-### Case study: the Maven dependency resolver (what NOT to do)
-
-An early pass at "dependency resolution for Code Projects" hand-rolled a POM
-parser, an HTTP artifact downloader, and a repository URL builder from scratch
-(`PomParser`, `ArtifactDownloader`, `MavenRepository`). That was wasted effort
-and strictly worse than what already shipped:
-
-- The repo already bundles `com.github.Cosmic-Ide:DependencyResolver`
-  (`org.cosmic.ide.dependency.resolver`) — a maintained Maven resolver with
-  transitive resolution, repository fallback, and AAR handling.
-- It was already used by `mod.pranav.dependency.resolver.DependencyResolver` and
-  the block editor's library downloader.
-
-The fix was to delete the custom code and add a thin
-`CosmicDependencyBridge` over the existing library. Net result: **−734 lines**
-and a more correct, better-tested resolver.
-
-### Checklist before writing a new subsystem
-
-1. **Grep the source tree** for the capability and its synonyms
-   (e.g. `maven`, `resolver`, `dependency`, `download`, `pom`).
-2. **Check `app/libs/*.jar` and `gradle/libs.versions.toml`** — a library may
-   already be on the classpath (references from JARs are invisible to source
-   grep, so inspect the declared dependencies too).
-3. **Look in `mod.*`** — most contributor features live there
-   (`mod.jbk`, `mod.hey.studios`, `mod.pranav`, `mod.hilal.saif`, `mod.bobur`).
-4. **Check how an existing screen does it** — e.g. the block editor often
-   already has a working flow you can adapt rather than reimplement.
-5. Only build new when reuse is genuinely impossible, and say *why* in the PR.
-
-If you do add a thin adapter over existing code, let the compiler validate the
-integration: a Kotlin/Java call against the real library/API fails at
-`./gradlew assembleDebug` if a signature is wrong — stronger proof than a
-hand-rolled equivalent that only "looks right".
+- Always run `./gradlew assembleDebug testDebugUnitTest` before committing.

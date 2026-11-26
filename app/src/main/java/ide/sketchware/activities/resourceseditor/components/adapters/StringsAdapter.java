@@ -1,9 +1,11 @@
 package ide.sketchware.activities.resourceseditor.components.adapters;
 
-import static com.besome.sketch.design.DesignActivity.sc_id;
 import static ide.sketchware.utility.FileUtil.getAllJavaFileNames;
 import static ide.sketchware.utility.FileUtil.getAllXmlFileNames;
 import static ide.sketchware.utility.UI.animateLayoutChanges;
+
+import java.io.File;
+import ide.sketchware.utility.FileUtil;
 
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -160,14 +162,45 @@ public class StringsAdapter extends RecyclerView.Adapter<StringsAdapter.ViewHold
     }
 
     public boolean isXmlStringUsed(String key) {
-        if ("app_name".equals(key) || sc_id == null) {
+        if ("app_name".equals(key)) {
             return false;
         }
+        if (activity.isUsingExplicitResourceRoot()) {
+            File resRoot = new File(activity.getExplicitResourceRoot());
+            File sourceRoot = resRoot.getParentFile();
+            return isStringReferencedInSourceTree(sourceRoot, key);
+        }
 
-        String projectScId = sc_id;
+        String projectScId = activity.sc_id;
+        if (projectScId == null || projectScId.isEmpty()) {
+            return false;
+        }
         eC projectDataManager = jC.a(projectScId);
 
         return isStringUsedInJavaFiles(projectScId, projectDataManager, key) || isStringUsedInXmlFiles(projectScId, projectDataManager, key);
+    }
+
+    private boolean isStringReferencedInSourceTree(File dir, String key) {
+        if (dir == null || !dir.exists() || !dir.isDirectory()) return false;
+        File[] files = dir.listFiles();
+        if (files == null) return false;
+        String xmlRef = "@string/" + key;
+        String codeRef = "R.string." + key;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                if (isStringReferencedInSourceTree(file, key)) return true;
+            } else {
+                String name = file.getName().toLowerCase();
+                if (name.endsWith(".xml") && !name.equals("strings.xml")) {
+                    String content = FileUtil.readFileIfExist(file.getAbsolutePath());
+                    if (content.contains(xmlRef)) return true;
+                } else if (name.endsWith(".java") || name.endsWith(".kt")) {
+                    String content = FileUtil.readFileIfExist(file.getAbsolutePath());
+                    if (content.contains(codeRef)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean isStringUsedInJavaFiles(String projectScId, eC projectDataManager, String key) {

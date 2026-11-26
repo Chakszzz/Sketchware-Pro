@@ -1,0 +1,61 @@
+appId: ide.sketchware
+name: "04 - Project Options, Export/Sign, App Settings & State Persistence"
+---
+- launchApp:
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "E2E Demo App"
+    timeout: 15000
+
+# Open project options bottom sheet
+- tapOn:
+    id: "expand"
+- extendedWaitUntil:
+    visible: "Export/Sign"
+    timeout: 10000
+
+- assertVisible: "Backup project"
+- assertVisible: "Change project settings"
+# Legacy block-editor configuration must be hidden for CodeProjects
+- assertNotVisible: "Project configuration"
+- takeScreenshot: "04a_project_options_sheet"
+
+# Verify Export/Sign screen opens without crash
+- tapOn: "Export/Sign"
+- extendedWaitUntil:
+    visible: "Export Project"
+    timeout: 10000
+- takeScreenshot: "04b_export_sign_screen"
+- back
+
+# Verify Main Drawer -> App Settings (and legacy block managers are gone)
+- extendedWaitUntil:
+    visible:
+      id: "create_new_project"
+    timeout: 10000
+- swipe:
+    start: "2%, 50%"
+    end: "75%, 50%"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 10000
+- takeScreenshot: "04c_main_drawer"
+- tapOn: "Settings"
+
+- extendedWaitUntil:
+    visible: "General"
+    timeout: 10000
+- assertNotVisible: "Block manager"
+- assertNotVisible: "Component manager"
+- takeScreenshot: "04d_app_settings"
+- back
+
+# Lifecycle test: stop and relaunch app, verify project persisted
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "E2E Demo App"
+    timeout: 15000
+- takeScreenshot: "04e_relaunch_state_persisted"

@@ -81,7 +81,7 @@ public class ColorPickerDialog extends PopupWindow {
         yq = new yq(activity, sc_id);
         yq.a(jC.c(sc_id), jC.b(sc_id), jC.a(sc_id), a.a.a.yq.ExportType.SOURCE_CODE_VIEWING);
         material3LibraryManager = new Material3LibraryManager(scId);
-        colorsEditorManager = new ColorsEditorManager();
+        colorsEditorManager = new ColorsEditorManager(scId, null);
         hasMaterialColors = true;
         initialize(activity, color, isTransparentColor, isNoneColor);
     }

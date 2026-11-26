@@ -1,11 +1,6 @@
 package mod.hey.studios.moreblock;
 
-import android.util.Pair;
-
-import com.besome.sketch.editor.LogicEditorActivity;
 import com.google.android.material.chip.ChipGroup;
-
-import java.util.Iterator;
 
 import ide.sketchware.R;
 
@@ -111,21 +106,6 @@ public class ReturnMoreblockManager {
             type = " ";
         }
         return type;
-    }
-
-
-    public static void listMoreblocks(Iterator<Pair<String, String>> it, LogicEditorActivity logicEditorActivity) {
-        while (it.hasNext()) {
-            String str = it.next().second;
-            String moreblockChar = getMoreblockChar(str);
-
-            if (moreblockChar.contains("|")) {
-                String[] split = moreblockChar.split("\\|");
-                logicEditorActivity.a(getMbName(str), split[0], split[1], "definedFunc").setTag(getMbName(str));
-            } else {
-                logicEditorActivity.a(getMbName(str), moreblockChar, "definedFunc").setTag(getMbName(str));
-            }
-        }
     }
 
     public static String getMoreblockChar(String str) {

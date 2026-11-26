@@ -142,6 +142,9 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
 
         sc_id = getIntent().getStringExtra("sc_id");
         alreadyAddedImageNames = getIntent().getStringArrayListExtra("imageNames");
+        if (alreadyAddedImageNames == null) {
+            alreadyAddedImageNames = new ArrayList<>();
+        }
 
         binding.imageList.setLayoutManager(new GridLayoutManager(getBaseContext(), getGridLayoutColumnCount()));
         adapter = new IconAdapter(this, selected_icon_type, selected_color, this);
@@ -332,7 +335,7 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
             });
             colorPicker.materialColorAttr((attr, attrColor) -> {
                 attr = "?attr/" + attr;
-                selected_color = PropertiesUtil.parseColor(new ColorsEditorManager().getColorValue(getApplicationContext(), attr, 3));
+                selected_color = PropertiesUtil.parseColor(new ColorsEditorManager(sc_id, null).getColorValue(getApplicationContext(), attr, 3));
                 selected_color_hex = attr;
                 dialogBinding.selectColour.setText(selected_color_hex);
                 adapter.setSelectedColor(selected_color);

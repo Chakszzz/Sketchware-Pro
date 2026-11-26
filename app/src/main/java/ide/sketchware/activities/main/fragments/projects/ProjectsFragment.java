@@ -60,12 +60,18 @@ public class ProjectsFragment extends DA {
             Intent data = result.getData();
             if (data != null) {
                 String sc_id = data.getStringExtra("sc_id");
-                if (data.getBooleanExtra("is_new", false)) {
-                    toDesignActivity(sc_id);
-                    addProject(sc_id);
+                if (sc_id != null && !sc_id.isEmpty()) {
+                    if (data.getBooleanExtra("is_new", false)) {
+                        toDesignActivity(sc_id);
+                        addProject(sc_id);
+                    } else {
+                        updateProject(sc_id);
+                    }
                 } else {
-                    updateProject(sc_id);
+                    refreshProjectsList();
                 }
+            } else {
+                refreshProjectsList();
             }
         }
     });
@@ -120,12 +126,6 @@ public class ProjectsFragment extends DA {
         if (getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).s();
         }
-    }
-
-    public void toProjectSettingsActivity() {
-        Intent intent = new Intent(getActivity(), MyProjectSettingActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        openProjectSettings.launch(intent);
     }
 
     public void restoreProject() {

@@ -1,0 +1,82 @@
+appId: ide.sketchware
+name: "02 - Create CodeProject, Edit File & On-Device APK Build"
+---
+- launchApp:
+    clearState: false
+
+- extendedWaitUntil:
+    visible:
+      id: "create_new_project"
+    timeout: 15000
+
+- tapOn:
+    id: "create_new_project"
+
+- extendedWaitUntil:
+    visible:
+      id: "btn_create"
+    timeout: 10000
+
+# Verify form validation rejects empty submission
+- tapOn:
+    id: "btn_create"
+- assertVisible:
+    id: "btn_create"
+
+# Fill valid CodeProject fields
+- tapOn:
+    id: "input_app_name"
+- inputText: "E2E Demo App"
+- hideKeyboard
+
+- tapOn:
+    id: "input_package_name"
+- inputText: "com.e2e.demoapp"
+- hideKeyboard
+
+- tapOn:
+    id: "input_project_name"
+- inputText: "E2EDemo"
+- hideKeyboard
+
+- takeScreenshot: "02a_create_project_form"
+
+- tapOn:
+    id: "btn_create"
+
+# Wait for CodeProjectActivity IDE to open
+- extendedWaitUntil:
+    visible: "E2EDemo"
+    timeout: 15000
+
+- assertVisible:
+    id: "editor"
+- takeScreenshot: "02b_code_project_ide"
+
+# Open File Explorer drawer and open AndroidManifest.xml + layout file
+- swipe:
+    start: "2%, 50%"
+    end: "75%, 50%"
+- extendedWaitUntil:
+    visible: "AndroidManifest.xml"
+    timeout: 10000
+- takeScreenshot: "02c_file_explorer_drawer"
+- tapOn: "AndroidManifest.xml"
+
+- extendedWaitUntil:
+    visible: "AndroidManifest.xml"
+    timeout: 10000
+- takeScreenshot: "02d_manifest_open_in_editor"
+
+# Trigger real on-device APK build (AAPT2 + ECJ + D8 + Zipalign + Testkey Sign)
+- tapOn:
+    id: "action_build"
+
+- extendedWaitUntil:
+    visible: "Build Successful"
+    timeout: 180000
+
+- takeScreenshot: "02e_build_success_dialog"
+
+# Dismiss install prompt so next flow stays inside IDE
+- tapOn: "Cancel"

@@ -1,6 +1,5 @@
 package ide.sketchware.activities.resourceseditor.components.utils;
 
-import static com.besome.sketch.design.DesignActivity.sc_id;
 import static mod.hey.studios.util.ProjectFile.getDefaultColor;
 
 import android.annotation.SuppressLint;
@@ -57,7 +56,7 @@ public class ColorsEditorManager {
     private final String resourceRoot;
 
     public ColorsEditorManager() {
-        this(sc_id, null);
+        this("", null);
     }
 
     public ColorsEditorManager(String projectScId, String resourceRoot) {
