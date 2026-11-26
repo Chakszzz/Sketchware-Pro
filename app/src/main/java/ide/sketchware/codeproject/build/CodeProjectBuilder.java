@@ -283,6 +283,14 @@ public class CodeProjectBuilder {
         // Compile resolved AAR library resources (after built-in libs, before project overlays)
         List<File> compiledAarArchives = new ArrayList<>();
         List<File> aarAssetsDirs = new ArrayList<>();
+        List<File> libraryManifests = new ArrayList<>();
+
+        for (BuiltInLibraries.BuiltInLibrary lib : builtInLibs) {
+            File libManifest = new File(BuiltInLibraries.getLibraryPath(lib.getName()), "AndroidManifest.xml");
+            if (libManifest.isFile()) {
+                libraryManifests.add(libManifest);
+            }
+        }
 
         File resolvedAarRoot = new File(project.getResolvedAarPath());
         if (resolvedAarRoot.exists() && resolvedAarRoot.isDirectory()) {
@@ -322,6 +330,7 @@ public class CodeProjectBuilder {
 
                     File aarManifest = new File(aarDir, "AndroidManifest.xml");
                     if (aarManifest.exists() && aarManifest.isFile()) {
+                        libraryManifests.add(aarManifest);
                         String pkg = extractManifestPackage(aarManifest);
                         if (pkg != null && !pkg.isEmpty() && !pkg.equals(project.getPackageName())) {
                             extraPackages.add(pkg);
@@ -401,6 +410,14 @@ public class CodeProjectBuilder {
         File androidJar = resolveAndroidJar();
         File outputApk = new File(binDir, "resources.apk");
         File manifestFile = new File(project.getManifestPath());
+        File effectiveManifest = manifestFile;
+        if (!libraryManifests.isEmpty()) {
+            effectiveManifest = CodeProjectManifestMerger.merge(
+                    manifestFile,
+                    libraryManifests,
+                    project.getPackageName(),
+                    new File(binDir, "merged_AndroidManifest.xml"));
+        }
         File aaptRulesFile = new File(binDir, "aapt_rules.pro");
 
         ArrayList<String> args = new ArrayList<>();
@@ -412,7 +429,7 @@ public class CodeProjectBuilder {
         args.add("-I");
         args.add(androidJar.getAbsolutePath());
         args.add("--manifest");
-        args.add(manifestFile.getAbsolutePath());
+        args.add(effectiveManifest.getAbsolutePath());
         args.add("-o");
         args.add(outputApk.getAbsolutePath());
         args.add("--java");
@@ -781,6 +798,11 @@ public class CodeProjectBuilder {
         }
 
         List<String> inlineRules = Arrays.asList(
+                "-keep public class * extends android.app.Application",
+                "-keep public class * extends android.app.Activity",
+                "-keep public class * extends android.app.Service",
+                "-keep public class * extends android.content.BroadcastReceiver",
+                "-keep public class * extends android.content.ContentProvider",
                 "-keepclassmembers class **.R$* { public static <fields>; }",
                 "-dontwarn",
                 "-ignorewarnings"

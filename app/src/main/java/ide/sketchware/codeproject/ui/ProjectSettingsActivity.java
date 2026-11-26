@@ -97,7 +97,7 @@ public class ProjectSettingsActivity extends BaseAppCompatActivity {
         binding.switchStringfogEnabled.setChecked(
                 "true".equalsIgnoreCase(yB.c(metadata, CodeProject.KEY_STRINGFOG_ENABLED)));
         binding.btnBuildSettings.setOnClickListener(v ->
-                ide.sketchware.dialogs.BuildSettingsBottomSheet.newInstance(scId)
+                ide.sketchware.dialogs.BuildSettingsBottomSheet.newInstance(scId, true)
                         .show(getSupportFragmentManager(), ide.sketchware.dialogs.BuildSettingsBottomSheet.TAG));
 
         boolean hasCustomIcon = yB.a(metadata, "custom_icon");

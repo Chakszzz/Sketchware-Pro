@@ -44,11 +44,17 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
 
     private ProjectConfigLayoutBinding binding;
     private BuildSettings projectSettings;
+    private boolean isCodeProject = false;
 
     public static BuildSettingsBottomSheet newInstance(String sc_id) {
+        return newInstance(sc_id, false);
+    }
+
+    public static BuildSettingsBottomSheet newInstance(String sc_id, boolean isCodeProject) {
         BuildSettingsBottomSheet sheet = new BuildSettingsBottomSheet();
         Bundle arguments = new Bundle();
         arguments.putString("sc_id", sc_id);
+        arguments.putBoolean("is_code_project", isCodeProject);
         sheet.setArguments(arguments);
         return sheet;
     }
@@ -69,6 +75,7 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
 
         Bundle arguments = getArguments();
         projectSettings = new BuildSettings(arguments.getString("sc_id"));
+        isCodeProject = arguments.getBoolean("is_code_project", false);
         views = new View[totalViews];
     }
 
@@ -91,7 +98,16 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
         binding.tilAndroidJar.getEditText().setText(projectSettings.getValue(SETTING_ANDROID_JAR_PATH, ""));
         binding.tilClasspath.getEditText().setText(projectSettings.getValue(SETTING_CLASSPATH, ""));
 
-        setRadioGroupOptions(binding.rgDexer, new String[]{"Dx", "D8"}, SETTING_DEXER, "D8");
+        if (isCodeProject) {
+            // CodeProjects always use D8/R8; hide obsolete Dx and block-project-only switches
+            setRadioGroupOptions(binding.rgDexer, new String[]{"D8"}, SETTING_DEXER, "D8");
+            binding.titleDexer.setVisibility(View.GONE);
+            binding.rgDexer.setVisibility(View.GONE);
+            binding.noHttpLegacy.setVisibility(View.GONE);
+            binding.enableLogcat.setVisibility(View.GONE);
+        } else {
+            setRadioGroupOptions(binding.rgDexer, new String[]{"Dx", "D8"}, SETTING_DEXER, "D8");
+        }
         setRadioGroupOptions(binding.rgJavaVersion, getAvailableJavaVersions(), SETTING_JAVA_VERSION, SETTING_JAVA_VERSION_1_8);
 
         setCheckboxValue(binding.cbNoWarnings, SETTING_NO_WARNINGS, true);
@@ -142,7 +158,7 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
             }
             radioButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (!isChecked) return;
-                if (key.equals(SETTING_JAVA_VERSION)) {
+                if (key.equals(SETTING_JAVA_VERSION) && !isCodeProject) {
                     handleJavaVersionChange(option);
                 }
             });
